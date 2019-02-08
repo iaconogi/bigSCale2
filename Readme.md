@@ -27,4 +27,6 @@ You can also embed plots, for example:
 plot(pressure)
 ```
 
+[I'm an inline-style link with title](https://www.google.com "Google's Homepage")
+
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
