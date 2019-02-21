@@ -1,23 +1,15 @@
----
-output:
-  html_document: default
-  pdf_document: default
----
-
-
 # **bigSCale 2**
 
 *bigSCale* is a complete framework for that analysis and visualization of single cell data. It allows to cluster, phenotype, perform pseudotime analysis and infer gene regulatory networks. 
-```html
-<span style="color:red">**Why using bigSCale 2?**</span>
-```
-<span style="color:red">**Why using bigSCale 2?**</span>
+
+
+**Why using bigSCale 2?**
 
 *  *bigSCale* features the most sensitive and accurate marker detection and classification. No PCA is used to reduce dimension, every bit of information is retained.
 *  *bigSCale* allows to infer the gene regulatory netowrk for any single cell dataset
 *  *bigSCale* allows to compress any large dataset into a small dataset without any loss of information.
 
-<span style="color:red">**Quick Start**</span>
+**Quick Start**
 
 *bigSCale* is formed by three sub-tools which can be used independently or in synergy. Each sub-tool has its own quick-start guide.<br />
 *bigSCale 2 Core* allows to cluster, phenotype and perform pseudo-time annalysis. It's is the main tool of bigSCale, published in.<br />
@@ -98,7 +90,6 @@ First, we make a plot of the clusters and signatures of coexpressed genes.
 
 
 ```{r}
-# All defaults
 viewSignatures(zeisel)
 ```
 
@@ -120,7 +111,11 @@ Next, we would like to inspect the markers of a specific cluster, let us say clu
 
 ```{r}
 viewSignatures(sce,selected.cluster=xx) 
+
 ``` 
+![Caption for the picture.](figures/multimarkers.svg)
+![Caption for the picture.](figures/multimarkers.eps)
+![Caption for the picture.](figures/multimarkers.tiff)
 
 Now, the plot is the same as before, but in place of the signature of coexpressed genes we see the markers of cluster xx stratified by level of specificity. In case you did not read the paper link, markers of level 1 are the most specific to a given cluster. Level 1 means that this markers are expressed only in cluster xx. However, shared markers are also very important in biology. Let us think to all markers shared by neuronal cell types as opposed to glial cell types. Here come into play the markers of higher levels. Markers of level 2 are markers shared between cluster xx and at most another cluster. Markers of level 3 are shared shared between cluster xx and at most two other clusters, and so on. These markers of higher levels are typcally lost by other computational tools.
 
