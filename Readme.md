@@ -8,7 +8,9 @@ output:
 # **bigSCale 2**
 
 *bigSCale* is a complete framework for that analysis and visualization of single cell data. It allows to cluster, phenotype, perform pseudotime analysis and infer gene regulatory networks. 
-
+```html
+<span style="color:red">**Why using bigSCale 2?**</span>
+```
 <span style="color:red">**Why using bigSCale 2?**</span>
 
 *  *bigSCale* features the most sensitive and accurate marker detection and classification. No PCA is used to reduce dimension, every bit of information is retained.
