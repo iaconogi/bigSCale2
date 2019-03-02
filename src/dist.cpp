@@ -15,7 +15,7 @@ NumericVector C_compute_distances(NumericMatrix expr_driving_norm, NumericMatrix
   double log_score;
   int k,pos_a,pos_b;
   double mean_lib_size;
-  printf("gene_num=%d,sample_num=%d",gene_num,sample_num);
+  //printf("gene_num=%d,sample_num=%d",gene_num,sample_num);
   
   count=0;
   

@@ -1,66 +1,193 @@
-bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size) {
+bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size,fragment=FALSE) {
   
 num.samples=ncol(expr.data.norm)
   
-# Adjusting max_group_size according to cell number
-if (num.samples<5000) dim.cutoff=50
-if (num.samples>=5000 & num.samples<10000) dim.cutoff=100
-if (num.samples>=10000) dim.cutoff=150
+if (fragment==FALSE)
+  {
+  # Adjusting max_group_size according to cell number
+  if (num.samples<5000) dim.cutoff=50
+  if (num.samples>=5000 & num.samples<10000) dim.cutoff=100
+  if (num.samples>=10000) dim.cutoff=150
+  }
+else
+  dim.cutoff=50  
 
-    
+print(sprintf('Clustering cells down to groups of approximately %g-%g cells',dim.cutoff,dim.cutoff*5))   
 #dim.cutoff=ncol(expr.data.norm)*min.group.size  
 
 mycl=rep(1,ncol(expr.data.norm))
 tot.recursive=1
-current.cutting=40
+#current.cutting=40
 unclusterable=rep(0,length(mycl))
 
 while(1){
 
-  cat(sprintf('\n\nRecursive clustering, Round %g',tot.recursive))
+  cat(sprintf('\nRecursive clustering, beginning round %g ....',tot.recursive))
   action.taken=0
   mycl.new=rep(0,length(mycl))
   
   
   for (k in 1:max(mycl))
   {
-    print(sprintf('Checking cluster %g/%g, %g cells',k,max(mycl),length(which(mycl==k))))
+    #print(sprintf('Checking cluster %g/%g, %g cells',k,max(mycl),length(which(mycl==k))))
     if (length(which(mycl==k))>dim.cutoff & sum(unclusterable[which(mycl==k)])==0 ) # then it must be re-clustered
     {
-      print('Computing Overdispersed genes ...')
-      ODgenes=calculate.ODgenes(expr.data.norm[,which(mycl==k)],min_ODscore = 2.33)
+      #print('Computing Overdispersed genes ...')
+      ODgenes=calculate.ODgenes(expr.data.norm[,which(mycl==k)],verbose = FALSE)
       dummy=as.matrix(ODgenes[[1]])
       ODgenes=which(dummy[,1]==1)
-      print('Computing distances ...')
+      #print('Computing distances ...')
       D=compute.distances(expr.norm = expr.data.norm[,which(mycl==k)],N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size[which(mycl==k)])
-      temp.clusters=bigscale.cluster(D,plot.clusters = FALSE,clustering.method = 'low.granularity',granularity.size=dim.cutoff)$clusters #cut.depth=current.cutting,method.treshold = 0.2
+      temp.clusters=bigscale.cluster(D,plot.clusters = FALSE,clustering.method = 'low.granularity',granularity.size=dim.cutoff,verbose=FALSE)$clusters #cut.depth=current.cutting,method.treshold = 0.2
       if (max(temp.clusters)>1) 
         action.taken=1
       else
         unclusterable[which(mycl==k)]=1
-      print(sprintf('Partitioned cluster %g/%g in %g sub clusters ...',k,max(mycl),max(temp.clusters)))
+      #print(sprintf('Partitioned cluster %g/%g in %g sub clusters ...',k,max(mycl),max(temp.clusters)))
       mycl.new[which(mycl==k)]=temp.clusters+max(mycl.new)
       
     }
     else
     {
-      print(sprintf('Cluster %g/%g is of size %g and cannot be further partitioned',k,max(mycl),length(which(mycl==k))))
+      #print(sprintf('Cluster %g/%g is of size %g and cannot be further partitioned',k,max(mycl),length(which(mycl==k))))
       mycl.new[which(mycl==k)]=1+max(mycl.new)
     }
   }
   
   tot.recursive=tot.recursive+1  
-  current.cutting=current.cutting+10
+  
+  cat(sprintf('\nRecursive clustering, after round %g obtained %g clusters',tot.recursive,max(mycl.new)))
+  
+  #current.cutting=current.cutting+10
   if (action.taken==0) 
     break
   else
     mycl=mycl.new 
-
   
+  
+  
+  #if(tot.recursive==5) break
 }
+
+# Preventing small clusters to be used, with a ugly trick
+
+bad.cells=c()
+bad.clusters=c()
+indexes=list()
+for (k in 1:max(mycl))
+    {
+    indexes[[k]]=which(mycl==k)
+    if (length(which(mycl==k))<5)
+      {
+      bad.clusters=c(bad.clusters,k)
+      bad.cells=c(bad.cells,which(mycl==k))
+      }
+    }
+if (length(bad.clusters)>0)
+  {
+  indexes=indexes[-bad.clusters]
+  mycl=rep(0,length(mycl))
+  for (k in 1:length(indexes))
+    mycl[indexes[[k]]]=k
+  warning(sprintf('Hidden %g clusters of %g cells total to be used: they are too small',length(bad.clusters),length(bad.cells)))
+  }
+
 
 return(mycl)
 }
+
+
+#' Compare gene centralities 
+#'
+#' Works with any given number of networks (N).  The centralities previously calculated with \code{compute.network()} for N networks are given as input.
+#' The script sorts the genes accoring to their change in centrality between the first network (first element of the input list) and the other N-1 networks (the rest of the list)
+#'
+#' @param centralities List of at least two elements. Each elemnt must be the (\code{data.frames}) of the centralities previously calculated by \code{compute.network()}. 
+#' @param names.conditions character of the names of the input networks, same length of the \bold{compute.network()}
+#' 
+#' @return  A list with a (\code{data.frame}) for each centrality. In each (\code{data.frame}) the genes are ranked for thier change in centrality.
+#'
+#'
+#' @examples
+#' out=compute.network(expr.data,gene.names)
+#'
+#' @export
+ 
+compare.centrality <- function(centralities,names.conditions)
+{
+  
+  
+  centrality.names=colnames(centralities[[1]])
+  
+  total.genes=c()
+  gene.set=list()
+  pos=list()
+  
+  for (k in 1:length(centralities))
+  {
+    gene.set[[k]]=rownames(centralities[[k]])
+    total.genes=union(total.genes,gene.set[[k]])
+  }
+  
+  for (k in 1:length(centralities))    
+    pos[[k]]=id.map(gene.set[[k]],total.genes)
+  
+  output=list()  
+  
+  for (k in 1:length(centrality.names))
+  {
+    result=matrix(0,length(total.genes),length(centralities)+2)
+    
+    for (j in 1:length(centralities))
+    {
+      dummy.vector=centralities[[j]][,k]
+      result[pos[[j]],j]=dummy.vector
+    }
+    
+    
+    if (length(centralities)>2)
+    {
+      result[,length(centralities)+1]=result[,1]-(apply(X = result[,2:length(centralities)],MARGIN = 1,FUN = max))
+      ranking=rank(result[,length(centralities)+1])
+      dummy=which(ranking>(length(ranking)/2))
+      ranking[dummy]=length(ranking)-ranking[dummy]
+      result[,length(centralities)+2]=ranking
+    }
+    else
+    {
+      result[,3]=(result[,1]-result[,2])
+      ranking=rank(result[,3])
+      dummy=which(ranking>(length(ranking)/2))
+      ranking[dummy]=length(ranking)-ranking[dummy]
+      result[,4]=ranking
+    }
+    
+    
+
+    
+    table.title=c()
+    for (j in 1:length(centralities))
+      table.title[j]=sprintf('%s.%s',centrality.names[k],names.conditions[j])
+    table.title[length(table.title)+1]='DELTA'
+    table.title[length(table.title)+1]='Ranking'
+    
+    result=data.frame(result)
+    colnames(result)=table.title
+    rownames(result)=total.genes
+    
+
+    result=result[order(result[,length(centralities)+1]),]
+    
+    output[[k]]=result
+  }
+  
+  names(output)=centrality.names
+  
+  return(output)
+  
+}   
+
+
 
 polish.graph = function (G)
 {
@@ -125,6 +252,8 @@ polish.graph = function (G)
   
 }
   
+
+  
 #' Gene regulatory network
 #'
 #' Infers the gene regulatory network from single cell data
@@ -161,13 +290,12 @@ polish.graph = function (G)
 #' out=compute.network(expr.data,gene.names)
 #'
 #' @export
-#'   
-#'   
-#'   
-#'   
+
   
 compute.network = function (expr.data,gene.names,clustering='recursive',quantile.p=0.998,speed.preset='slow'){
 
+  
+  
 expr.data=as.matrix(expr.data)
 
 
@@ -202,15 +330,16 @@ gc()
   
 print('PASSAGE 5) Clustering ...')
 if (clustering=="direct" | clustering=="recursive")
-  mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size)
+  #mycl=sample(real.clusters)
+  mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size,fragment=TRUE)
 else
   {
-  ODgenes=calculate.ODgenes(expr.data.norm,min_ODscore = 2.33)
+  ODgenes=calculate.ODgenes(expr.data.norm)
   dummy=as.matrix(ODgenes[[1]])
   ODgenes=which(dummy[,1]==1)
   print('Computing distances ...')
   D=compute.distances(expr.norm = expr.data.norm,N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size)
-  mycl=bigscale.cluster(D,plot.clusters = TRUE)$clusters
+  mycl=bigscale.cluster(D,plot.clusters = TRUE,method.treshold = 0.5)$clusters
   }
 tot.clusters=max(mycl)
 
@@ -219,6 +348,7 @@ tot.clusters=max(mycl)
 
 #filtering the number of genes
 pass.cutoff=which(tot.cells>(max(15,ncol(expr.data.norm)*0.005)))
+#pass.cutoff=which(tot.cells>0)
 gene.names=gene.names[pass.cutoff]
 
 
@@ -320,8 +450,8 @@ Degree=igraph::degree(graph = G)
 PAGErank=igraph::page_rank(graph = G,directed = FALSE)$vector
 Closeness=igraph::closeness(graph = G,normalized = TRUE)
 
-if (cutoff.p<0.8)
-  warning('bigSCale: the cutoff for the correlations seems very low. You should either increase the parameter quantile.p (which can be done without running the entire code again, simply pass the output as new input) or select clustering=normal (you need to run the whole code again). For more information check the quick guide online')
+if (cutoff.p<0.7)
+  warning('bigSCale: the cutoff for the correlations seems very low. You should either increase the parameter quantile.p or select clustering=normal (you need to run the whole code again in both options,sorry!). For more information check the quick guide online')
 
 return(list(graph=G,correlations=Df,tot.scores=tot.scores,clusters=mycl,centrality=as.data.frame(cbind(Degree,Betweenness,Closeness,PAGErank)),cutoff.p=cutoff.p,model=model))
 }
@@ -338,7 +468,7 @@ return(list(graph=G,correlations=Df,tot.scores=tot.scores,clusters=mycl,centrali
 compute.pseudotime = function (minST){
   
   
-  minST=set_vertex_attr(graph = minST,name = "name", value = c(1:max(V(minST))))
+  minST=igraph::set_vertex_attr(graph = minST,name = "name", value = c(1:max(igraph::V(minST))))
   
   minST.core=minST
   
@@ -348,19 +478,19 @@ compute.pseudotime = function (minST){
   #network.diameter=max(dummy)
     
   # At every cycle I remove the tail nodes with degree = 1
-  cycles=round(length(V(minST.core))/100)
+  cycles=round(length(igraph::V(minST.core))/100)
   #cycles=round(network.diameter/5)
 
   print('Searching for tail clusters ...')
   for (k in 1:cycles)
   {
-    tails=which(degree(minST.core)==1)
-    minST.core=delete_vertices(minST.core, tails)
-    core.nodes=vertex.attributes(minST.core)$name
-    minST.tails=delete_vertices(minST, core.nodes)
-    if ((components(graph = minST.tails)$no)<20)
+    tails=which(igraph::degree(minST.core)==1)
+    minST.core=igraph::delete_vertices(minST.core, tails)
+    core.nodes=igraph::vertex.attributes(minST.core)$name
+    minST.tails=igraph::delete_vertices(minST, core.nodes)
+    if ((igraph::components(graph = minST.tails)$no)<20)
     {
-      if ((components(graph = minST.tails)$no)==1)
+      if ((igraph::components(graph = minST.tails)$no)==1)
         {stop('BigSCale author needs to fix a problem here, in the computation of the pseudotime')}
       break
     }
@@ -371,7 +501,7 @@ compute.pseudotime = function (minST){
   #plot(minST.tails,vertex.size=2,vertex.label=NA,layout=layout_with_kk(graph = minST.tails,weights = 1/E(minST.tails)$weight))
   #plot(minST.tails,vertex.size=2,vertex.label=NA,layout=layout_with_kk(graph = minST.tails,weights = NA))
        
-  graph.comp=components(minST.tails)
+  graph.comp=igraph::components(minST.tails)
   
   
   end.tails=list()
@@ -379,7 +509,7 @@ compute.pseudotime = function (minST){
   for (k in 1:graph.comp$no)
     if (graph.comp$csize[k]>10)
     {
-      end.tails[[count.comp]]=vertex.attributes(minST.tails)$name[which(graph.comp$membership==k)]
+      end.tails[[count.comp]]=igraph::vertex.attributes(minST.tails)$name[which(graph.comp$membership==k)]
       count.comp=count.comp+1
     }
   
@@ -387,7 +517,9 @@ compute.pseudotime = function (minST){
   out=c()
   for (k in 1:length(end.tails))
   {
-    out[k]=mean(distances(graph = minST,v = end.tails[[k]],to = unlist(end.tails[setdiff.Vector(1:length(end.tails),k)])))
+    # minST.out<<-minST
+    # end.tails.out<<-end.tails
+    out[k]=mean(igraph::distances(graph = minST,v = end.tails[[k]],to = unlist(end.tails[setdiff.Vector(1:length(end.tails),k)])))
   }
   
   
@@ -396,9 +528,9 @@ compute.pseudotime = function (minST){
   
   # FIX THIS USING MORE THAN ONE NODE AND ONLY COUNTING THE DISTANCES AGINST OUTER CLUSTERS
   startORend=end.tails[[which.max(out)]]
-  dist.to.all=Rfast::rowmeans(distances(graph = minST,v = startORend))
+  dist.to.all=Rfast::rowmeans(igraph::distances(graph = minST,v = startORend))
   end.node=startORend[which.max(dist.to.all)]
-  pseudotime=distances(graph = minST,v = end.node)
+  pseudotime=igraph::distances(graph = minST,v = end.node)
   
   #removing outliers
   outliers.dn=which(pseudotime<(median(pseudotime)-3*sd(pseudotime)))
@@ -419,7 +551,7 @@ bigSCale.violin = function (gene.expr,groups,gene.name){
   tot.clusters=max(groups)
   df=adjust.expression(gene.expr = gene.expr, groups = groups)
 
-  p=ggplot2::ggplot(df, ggplot2::aes(x=groups, y=log2(gene.expr+1))) + ggplot2::geom_violin(fill = AddAlpha("grey90",0.5), colour = AddAlpha("grey90",0.5), trim=TRUE,scale='width') + ggplot2::geom_quasirandom(mapping = ggplot2::aes(color=groups),varwidth = TRUE) + ggplot2::scale_colour_manual(name="color", values=set.quantitative.palette(tot.clusters)) + ggplot2::theme_bw() + ggplot2::ggtitle(gene.name)+ ggplot2::theme(plot.title = element_text(hjust = 0.5))
+  p=ggplot2::ggplot(df, ggplot2::aes(x=groups, y=log2(gene.expr+1))) + ggplot2::geom_violin(fill = RgoogleMaps::AddAlpha("grey90",0.5), colour = RgoogleMaps::AddAlpha("grey90",0.5), trim=TRUE,scale='width') + ggbeeswarm::geom_quasirandom(mapping = ggplot2::aes(color=groups),varwidth = TRUE) + ggplot2::scale_colour_manual(name="color", values=set.quantitative.palette(tot.clusters)) + ggplot2::theme_bw() + ggplot2::ggtitle(gene.name)+ ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
 
   print(p)
   return(p)
@@ -471,14 +603,14 @@ bigSCale.barplot = function (ht,clusters,gene.expr,gene.name){
  df=data.frame(X=c(1:length(gene.expr)),Y=gene.expr[ht$order],clusters=as.factor(clusters[ht$order]))
  
  palette=set.quantitative.palette(tot.clusters)
- palette=AddAlpha(palette,0.4)
+ palette=RgoogleMaps::AddAlpha(palette,0.4)
  temp=unique(clusters[ht$order])
  temp=sort(temp,index.return=T)
  palette.sorted=palette[temp$ix]
  
 
  
- p=ggbarplot(df, x = "X", y = "Y", fill = "clusters",color = "clusters", palette = palette.sorted,sort.by.groups = FALSE,x.text.angle = 90,width=1)
+ p=ggpubr::ggbarplot(df, x = "X", y = "Y", fill = "clusters",color = "clusters", palette = palette.sorted,sort.by.groups = FALSE,x.text.angle = 90,width=1)
  
  cluster.order=unique(df$clusters)
  print(cluster.order)
@@ -487,19 +619,22 @@ bigSCale.barplot = function (ht,clusters,gene.expr,gene.name){
  for ( k in 1:tot.clusters)
     {
     cluster.xcoord=mean(which(df$clusters==cluster.order[k]))
-    p = p + annotate("text", x = cluster.xcoord, y = cluster.ycoord, label = sprintf("C%g",k))
+    p = p + ggplot2::annotate("text", x = cluster.xcoord, y = cluster.ycoord, label = sprintf("C%g",k))
     }
- p=ggplot2::ggpar(p,legend='none')
- p = p +  ggplot2::theme(axis.title.x=element_blank(),axis.ticks.x=element_blank(), axis.line=element_blank(),axis.text.x=element_blank())+ggplot2::ylab('EXPRESSION COUNTS') + ggplot2::ggtitle(gene.name)+ ggplot2::theme(plot.title = element_text(hjust = 0.5))
+ p=ggpubr::ggpar(p,legend='none')
+ p = p +  ggplot2::theme(axis.title.x=ggplot2::element_blank(),axis.ticks.x=ggplot2::element_blank(), axis.line=ggplot2::element_blank(),axis.text.x=ggplot2::element_blank())+ggplot2::ylab('EXPRESSION COUNTS') + ggplot2::ggtitle(gene.name)+ ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
  
  return(p)
 }
   
   
   
-bigSCale.signature.plot = function (ht,clusters,colData,data.matrix,signatures,size.factors,type){
+bigSCale.signature.plot = function (ht,clusters,colData=NA,data.matrix,signatures,size.factors,type){
   
   gc()
+  
+
+  data.matrix=Matrix::as.matrix(data.matrix)
   
   # setting up and coloring the dendrogram
   d=as.dendrogram(ht)
@@ -517,11 +652,11 @@ bigSCale.signature.plot = function (ht,clusters,colData,data.matrix,signatures,s
   row.labels=c()
    for (k in 1:length(signatures))
    {
-    plotting.data=cbind(plotting.data,shift.values(colmeans(data.matrix[signatures[[k]],]),0,1))
+    plotting.data=cbind(plotting.data,shift.values(Rfast::colmeans(data.matrix[signatures[[k]]$GENE_NUM,]),0,1))
     if (type=='signatures')
-      row.labels[k]=sprintf('Signature %g (%g genes)',k, length(signatures[[k]]))
+      row.labels[k]=sprintf('Signature %g (%g genes)',k, length(signatures[[k]]$GENE_NUM))
     else
-      row.labels[k]=sprintf('Markers Level %g (%g genes)',k, length(signatures[[k]]))
+      row.labels[k]=sprintf('Markers Level %g (%g genes)',k, length(signatures[[k]]$GENE_NUM))
    }
     
   plotting.data=t(plotting.data)
@@ -535,7 +670,7 @@ bigSCale.signature.plot = function (ht,clusters,colData,data.matrix,signatures,s
   
   
   # 3) Plotting user custom colData of single cell object
-  if (!missing(colData))
+  if (!is.na(colData) & ncol(colData)>0 & length(colData)>0)
   {
     names.user.metadata=colnames(colData)
     for (k in 1:ncol(colData))
@@ -557,9 +692,9 @@ bigSCale.signature.plot = function (ht,clusters,colData,data.matrix,signatures,s
   
 
   if (type=='signatures') 
-    heatmap3(plotting.data,Colv = d, showRowDendro = T , ColSideColors = ColSideColors,labCol = c(''),labRow  = row.labels,cexRow =1,col = colorRampPalette(c('black','yellow'))(1024),scale='none',useRaster = TRUE)#,ColSideAnn=colData,ColSideFun=function(x) plot(as.matrix(x)),ColSideWidth=)
+    heatmap3::heatmap3(plotting.data,Colv = d, showRowDendro = T , ColSideColors = ColSideColors,labCol = c(''),labRow  = row.labels,cexRow =1,col = colorRampPalette(c('black','yellow'))(1024),scale='none',useRaster = TRUE)#,ColSideAnn=colData,ColSideFun=function(x) plot(as.matrix(x)),ColSideWidth=)
   else
-    heatmap3(plotting.data[c(nrow(plotting.data):1),],Colv = d, Rowv = NA, ColSideColors = ColSideColors,labCol = c(''),labRow  = row.labels[c(nrow(plotting.data):1)],cexRow =1,col = colorRampPalette(c('black','yellow'))(1024),scale='none',useRaster = TRUE)#,ColSideAnn=colData,ColSideFun=function(x) plot(as.matrix(x)),ColSideWidth=)
+    heatmap3::heatmap3(plotting.data[c(nrow(plotting.data):1),],Colv = d, Rowv = NA, ColSideColors = ColSideColors,labCol = c(''),labRow  = row.labels[c(nrow(plotting.data):1)],cexRow =1,col = colorRampPalette(c('black','yellow'))(1024),scale='none',useRaster = TRUE)#,ColSideAnn=colData,ColSideFun=function(x) plot(as.matrix(x)),ColSideWidth=)
   
   gc()
 }
@@ -581,10 +716,10 @@ set.graded.palette = function (x)
   }
 
 
-assign.color = function (x, scale.type){
+assign.color = function (x, scale.type=NA){
   
 
-  if (missing(scale.type))
+  if (is.na(scale.type))
     scale.type='expression'
    
   if (scale.type=='expression')
@@ -653,14 +788,16 @@ bigSCale.tsne.plot = function (tsne.data,color.by,fig.title,colorbar.title){
   
   if (is.factor(color.by))
     {
-    p=interactive.plot(x=tsne.data[,1],y=tsne.data[,2],color=color.by,colors = set.quantitative.palette(length(unique(color.by))),text=cell.names) %>% layout(title = sprintf("%s",fig.title))
+    p=interactive.plot(x=tsne.data[,1],y=tsne.data[,2],color=color.by,colors = set.quantitative.palette(length(unique(color.by))),text=cell.names)#) %>% layout(title = sprintf("%s",fig.title))
+    p=plotly::layout(p,title = sprintf("%s",fig.title))
     print(p)    
     }
   else
   {
    custom.colorscale=list(c(0, 'rgb(225,225,225)'), c(0.01, 'rgb(255,255,0)'),c(0.5, 'rgb(255,153,0)'), c(1, 'rgb(204,0,0)'))
    Expression=color.by
-   p=interactive.plot(x=tsne.data[,1],y=tsne.data[,2],marker=list(color=~Expression,colorbar=list(title=colorbar.title),colorscale=custom.colorscale,reversescale =F),text=cell.names) %>% layout(title = sprintf("%s",fig.title),xaxis = list(zeroline = FALSE),yaxis = list(zeroline = FALSE))#,cauto=F,cmin=0,cmax=5))   #cauto=F,cmin=0,cmax=1,
+   p=interactive.plot(x=tsne.data[,1],y=tsne.data[,2],marker=list(color=~Expression,colorbar=list(title=colorbar.title),colorscale=custom.colorscale,reversescale =F),text=cell.names)
+   p=plotly::layout(p,title = sprintf("%s",fig.title),xaxis = list(zeroline = FALSE),yaxis = list(zeroline = FALSE))#,cauto=F,cmin=0,cmax=5))   #cauto=F,cmin=0,cmax=1,
    print(p)
   }
 
@@ -690,14 +827,14 @@ return(palette)
   
 }
 
-organize.markers = function (Mscores,Fscores,cutoff,gene.names){
+organize.markers = function (Mscores,Fscores,cutoff=NA,gene.names){
 
 # PART1 : calculating the marker list for all the clusters and all the levels using the given cutoff
 gc()
   
 
 
-if (missing(cutoff)) cutoff=3
+if (is.na(cutoff)) cutoff=3
 tot.clusters=nrow(Mscores)
 
 Mlist = matrix(vector('list',tot.clusters*(tot.clusters-1)),tot.clusters,(tot.clusters-1))
@@ -738,7 +875,7 @@ return(Mlist)
 }
 
 
-calculate.signatures = function (Mscores,cutoff=3){
+calculate.signatures = function (Mscores,gene.names,cutoff=3){
   
 gc()
 
@@ -756,14 +893,23 @@ for (k in 1:(tot.clusters-1))
 
 # removing genes without significant DE
 expressed=which(Rfast::rowsums(abs(tot.scores)>cutoff)>0)
+
+
+
 tot.scores=tot.scores[expressed,]
+gene.names=gene.names[expressed]
+scores=Rfast::rowsums(abs(tot.scores))/ncol(tot.scores)
 print(sprintf("Clustering %g genes differentially expressed...",nrow(tot.scores)))
 
 # clustering and creating the list of markers
 clusters=bigscale.cluster(1-Rfast::cora(t(tot.scores)))$clusters
 signatures=list()
 for (k in 1:max(clusters))
-  signatures[[k]]=expressed[which(clusters==k)]
+  {
+  dummy=data.frame(GENE_NUM=expressed[which(clusters==k)],GENE_NAME=gene.names[which(clusters==k)],SCORE=scores[which(clusters==k)])
+  signatures[[k]]=dummy[order(dummy$SCORE,decreasing = TRUE),]  
+  }
+  
 
 gc()
 
@@ -775,21 +921,25 @@ return(signatures)
 
 
 
-calculate.marker.scores = function (expr.norm, clusters, N_pct, edges, lib.size, hoomogeneize, speed.preset){
+calculate.marker.scores = function (expr.norm, clusters, N_pct, edges, lib.size, speed.preset){
   
   gc()  
   tot.clusters=max(clusters)
-  
-  expr.norm=as.matrix(expr.norm)
   
   # Initializing the 2D list (a matrix list)
   Mscores = matrix(vector('list',tot.clusters*tot.clusters),tot.clusters,tot.clusters)
   Fscores = matrix(vector('list',tot.clusters*tot.clusters),tot.clusters,tot.clusters)
     
-  pb = txtProgressBar(style=3)
+ 
   to.calculate=tot.clusters*(tot.clusters-1)/2
   computed=0
   # Rolling trought the pairwise cluster comparisons
+  
+  pb <- progress::progress_bar$new(format = "Running Diff.Expr. [:bar] :current/:total (:percent) eta: :eta", total = tot.clusters*(tot.clusters-1)/2)
+  pb$tick(0)
+
+
+  
   for (j in 1:(tot.clusters-1))
     for (k in (j+1):tot.clusters)
     {
@@ -799,7 +949,7 @@ calculate.marker.scores = function (expr.norm, clusters, N_pct, edges, lib.size,
       Mscores[[k,j]] = -out[,1] # DEscores.final
       Fscores[[k,j]] = -out[,2] # Log2(Fold change)
       computed=computed+1
-      setTxtProgressBar(pb, computed/to.calculate)
+      pb$tick(1)
     }
 
 out=list(Mscores=Mscores,Fscores=Fscores)
@@ -810,12 +960,12 @@ return(out)
 
 
 
-bigscale.DE = function (expr.norm, N_pct, edges, lib.size, group1,group2,speed.preset,plot.graphic){
+bigscale.DE = function (expr.norm, N_pct, edges, lib.size, group1,group2,speed.preset='slow',plot.graphic=FALSE){
   
-  gc()
+#print('Starting DE')  
+gc.out=gc()
+#print(gc.out)
   
-if (missing(plot.graphic)) plot.graphic=FALSE
-if (missing(speed.preset)) speed.preset='normal'
 
 #POSSIBLY FASTER PASSING DIRECTLY THE TWO MATRICES WITHOUT GROUP1/GROUP2
 start=Sys.time()
@@ -823,9 +973,14 @@ start=Sys.time()
 
 num.genes.initial=nrow(expr.norm)
 
+expr.norm=bigmemory::as.matrix(expr.norm[,c(group1,group2)])
+group1=c(1:length(group1))
+group2=c((length(group1)+1):(length(group1)+length(group2)))
+
 #remove the genes with zero reads
-genes.expr =which(Rfast::rowsums(expr.norm[,c(group1,group2)])>0)
-print(sprintf('I remove %g genes not expressed enough', (nrow(expr.norm)-length(genes.expr))))
+#genes.expr =which(Rfast::rowsums(expr.norm[,c(group1,group2)])>0)
+genes.expr =which(Rfast::rowsums(expr.norm)>0)
+#print(sprintf('I remove %g genes not expressed enough', (nrow(expr.norm)-length(genes.expr))))
 expr.norm=expr.norm[genes.expr,]
 gc()
 num.genes=nrow(expr.norm)
@@ -848,13 +1003,13 @@ dummy=rep(0,num.genes)
 DE.scores.wc=rep(0,num.genes.initial)
 info.groups=c(rep(TRUE,length(group1)),rep(FALSE,length(group2)))
 input.matrix=expr.norm[,c(group1,group2)]
-print(sprintf('Launching the Wilcoxon, %g VS %g cells',length(group1),length(group2)))
+#print(sprintf('Launching the Wilcoxon, %g VS %g cells',length(group1),length(group2)))
 dummy=BioQC::wmwTest(t(input.matrix), info.groups , valType = 'p.two.sided' )
 # fixing the zeroes in wilcoxon
 zeroes=which(dummy==0)
 if (length(zeroes)>0)
   dummy[zeroes]=min(dummy[-zeroes])
-print('Computed Wilcoxon')
+#print('Computed Wilcoxon')
 dummy[dummy>0.5]=0.5
 DE.scores.wc[genes.expr]=-qnorm(dummy)
 DE.scores.wc=abs(DE.scores.wc)*sign(F.change)
@@ -933,8 +1088,8 @@ for (k in 1:tot.el)
 indA.size=1000000
 critical.value=max(lib.size)*max(expr.norm)
 if (critical.value>indA.size/10)
-  stop(printf('Critical value too high (%g): Note from bigSCale author, you have to increase indA.size'))
-print('Proceding to allocate large vector')
+  stop(sprintf('Critical value too high (%g): Note from bigSCale author, you have to increase indA.size',critical.value))
+#print('Proceding to allocate large vector')
 vector=c(0:indA.size)/10 # increase if code blocks, It can assign a gene exprssion level up to 10000000
 gc()
 ind.A=as.integer(cut(vector,edges,include.lowest = TRUE))
@@ -946,23 +1101,21 @@ gc()
 
 
 # Calculating scores of real DE
-print('Rcpp computing real DE')
+#print('Rcpp computing real DE')
 results.DE.real=DE_Rcpp(expr.norm[,group1],expr.norm[,group2], log.scores,  ind.A, lib.size[group1], lib.size[group2])
 gc()
 DE.scores.real=results.DE.real[1:num.genes]
 DE.counts.real=results.DE.real[(num.genes+1):length(results.DE.real)]
 
-print(length(DE.scores.real))
-print(length(DE.counts.real))
 
 # Calculating scores of random permutations
-print('Rcpp computing randomly reshuffled DEs')
+#print('Rcpp computing randomly reshuffled DEs')
 idx=c(group1,group2)
 Total.scores.fake=c()
 Total.counts.fake=c()
 for (repetitions in 1:max.rep)
   {
-  print(sprintf('Random repetition %d',repetitions))
+  #print(sprintf('Random repetition %d',repetitions))
   idx=sample(idx)
   fake.A=idx[1:length(group1)]
   fake.B=idx[(length(group1)+1):length(idx)]
@@ -975,7 +1128,7 @@ for (repetitions in 1:max.rep)
 
   
 # Fitting the random DEs: Moving standard deviation DE_scores against DE_counts
-print('Fitting the random DEs')
+#print('Fitting the random DEs')
 sa=sort(Total.counts.fake, index.return = TRUE)
 sd_width=200
 movSD=zoo::rollapply(Total.scores.fake[sa$ix], width = sd_width,FUN=sd, fill = NA)
@@ -990,21 +1143,25 @@ movSD[length(movSD)]=last.value.y+estimated.increase
 movSD[1:sd_width/2]=min(movSD[(sd_width/2+1):sd_width])
 f=smooth.spline(x=sa$x[!is.na(movSD)],y=movSD[!is.na(movSD)],df = 32)
 
+
+yy=approx(f$x,f$y,DE.counts.real)$y
+
   # f.out<<-f
-  # yy.out<<-yy
-  # DE.counts.real.out<<-DE.counts.real
+  #yy.out<<-yy
+  #DE.counts.real.out<<-DE.counts.real
   # x.out<<-sa$x[!is.na(movSD)]
   # y.out<<-movSD[!is.na(movSD)]
 
-yy=approx(f$x,f$y,DE.counts.real)$y
+
 if (any(is.na(yy))) # fixing the NA in the yy, when they coincide with the highest DE.counts.real
   {
     null.fits=which(is.na(yy))
     for (scroll.null.fits in 1:length(null.fits))
     {
       result=unique(DE.counts.real[-null.fits]<DE.counts.real[null.fits[scroll.null.fits]])
-      if (!result=='TRUE')
-        stop('Fix this bug, programmer!')
+      if (length(result)>1) stop('Fix this bug, programmer!')
+      if (result=='FALSE') 
+        yy[null.fits[scroll.null.fits]]=min(yy[-null.fits])
       else
         yy[null.fits[scroll.null.fits]]=max(yy[-null.fits])
     }
@@ -1057,12 +1214,12 @@ factor=mean(c(factor1,factor2))
 if (is.infinite(factor) | factor<0)
   stop('Problems with the factor')
 
-print(sprintf('Factor1 %.2f, factor2 %.2f, average factor %.2f',factor1,factor2,factor))
+#print(sprintf('Factor1 %.2f, factor2 %.2f, average factor %.2f',factor1,factor2,factor))
 
 DE.scores.wc=DE.scores.wc/factor
 DE.scores.final=sqrt(DE.scores.wc^2+DE.scores^2)*sign(F.change)
 
-print(Sys.time()-start)
+#print(Sys.time()-start)
 
 gc()
 
@@ -1072,16 +1229,18 @@ return(cbind(DE.scores.final,F.change))
 }
 
 
-bigscale.cluster = function (D,plot.clusters=FALSE,cut.depth,method.treshold=0.5,clustering.method='high.granularity',granularity.size){
+bigscale.cluster = function (D,plot.clusters=FALSE,cut.depth=NA,method.treshold=0.5,clustering.method='high.granularity',granularity.size,verbose=TRUE){
 
 gc()
-
-
+  
+  if (class(D)=='big.matrix')
+    D=bigmemory::as.matrix(D)
+  
 ht=hclust(as.dist(D),method='ward.D')
 
 
 
-if (missing(cut.depth) & clustering.method=='high.granularity')
+if (is.na(cut.depth) & clustering.method=='high.granularity')
   {
   # Trying a variation of the elbow method to automatically set the cluster number
   result=rep(0,100)
@@ -1098,7 +1257,7 @@ if (missing(cut.depth) & clustering.method=='high.granularity')
   
   }
 
-if (missing(cut.depth) & clustering.method=='low.granularity')
+if (is.na(cut.depth) & clustering.method=='low.granularity')
 {
 
   result=c()
@@ -1108,22 +1267,30 @@ if (missing(cut.depth) & clustering.method=='low.granularity')
     mycl <- cutree(ht, h=max(ht$height)*progressive.depth[k]/100)
     result[k]=max(mycl)
   }
-  print(result)
+  #print(result)
   result= ( diff(result)>0 )
   
-  print(result)
+  #print(result)
   
   detected.positions=c()
   for (k in 1:(length(result)-2))
     if (result[k]==TRUE & result[k+1]==TRUE)
       detected.positions=c(detected.positions,k)
       
-  if (length(detected.positions)==0) 
-    cut.depth=progressive.depth[min(which(result==TRUE))]
-  else
-    cut.depth=progressive.depth[min(detected.positions)]
+  
+  if (sum(result)==0)
+    cut.depth=30
+  else  
+  {
+    if (length(detected.positions)==0) 
+      cut.depth=progressive.depth[min(which(result==TRUE))]
+    else
+      cut.depth=progressive.depth[min(detected.positions)]
+  }
 
-  print(sprintf('Cut depth before checking granularity: %g percent',cut.depth))
+  
+  
+  #print(sprintf('Cut depth before checking granularity: %g percent',cut.depth))
   if (cut.depth>=30 & length(ht$order)<granularity.size) cut.depth=100 # do not cluster at all if it starts fragemnting so high alreay
   if (cut.depth>=40 & length(ht$order)>=granularity.size & length(ht$order)<(granularity.size*2)) cut.depth=100 # do not cluster at all if it starts fragemnting so high alreay
   if (cut.depth>=50 & length(ht$order)>=(granularity.size*2) & length(ht$order)<(granularity.size*3)) cut.depth=100 # do not cluster at all if it starts fragemnting so high alreay
@@ -1138,6 +1305,7 @@ if (cut.depth<100)
 else
   mycl = rep(1,length(ht$order)) 
 
+if (verbose)
 print(sprintf('Automatically cutting the tree at %g percent, with %g resulting clusters',cut.depth,max(mycl)))
 
 #if (length(unique(mycl))>1 & cut.depth==100) stop('Error in the clustering, wake up!')
@@ -1150,7 +1318,7 @@ for (k in 1:max(mycl))
 
 if (plot.clusters) # plotting the dendrogram
   {
-  print('We are here')
+  #print('We are here')
   d=as.dendrogram(ht)
   tot.clusters=max(clusters)
   palette=set.quantitative.palette(tot.clusters)
@@ -1166,7 +1334,7 @@ return(list(clusters=clusters,ht=ht))
 
 compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size){
   
-  expr.norm=as.matrix(expr.norm)
+  #expr.norm=as.matrix(expr.norm)
   gc()
   
 
@@ -1207,18 +1375,24 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   log.scores=abs(log.scores*dereg)
                  
   # normalize expression data for library size without scaling to the overall average depth
-  expr.driving.norm=expr.norm[driving.genes,]/mean(lib.size)
+  expr.driving.norm=bigmemory::as.matrix(expr.norm[driving.genes,])/mean(lib.size)
   rm(expr.norm)
   gc()
   # Consumes several Gb of memory this step!
   # Vector is a trick to increase speed in the next C++ part
 
   indA.size=1000000
+  expr.driving.norm.out<<-expr.driving.norm
   critical.value=max(lib.size)*max(expr.driving.norm)
   if (critical.value>indA.size/10)
-    stop(printf('Critical value too high (%g): Note from bigSCale author, you have to increase indA.size'))
+    {
+    indA.size=indA.size*50
+      warning(sprintf('Critical value very high (%g): Increased memory usage!!',critical.value))
+    if (critical.value>indA.size/10)
+      stop(sprintf('Critical value way too high (%g): Stopping the analysis!!',critical.value))
+    }
   
-  print('Proceding to allocate large vector')
+  #print('Proceding to allocate large vector')
   vector=c(0:indA.size)/10 # increase if code blocks, It can assign a gene exprssion level up to 10000000
   gc()
   ind.A=as.integer(cut(vector,edges,include.lowest = TRUE))
@@ -1240,8 +1414,8 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
     {
     start.time=Sys.time() 
     D=C_compute_distances(expr.driving.norm,log.scores,ind.A,lib.size)
-    print("Time elapsed to calculate distances")
-    print(Sys.time()-start.time)
+    #print("Time elapsed to calculate distances")
+    #print(Sys.time()-start.time)
     }
 
   #D=Dist(Rfast::squareform(D), method = "euclidean", square = FALSE,vector=FALSE)
@@ -1315,16 +1489,18 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
 #   
 # }
 
-fit.model = function(expr.norm,edges,lib.size){
+fit.model = function(expr.norm,edges,lib.size,plot.pre.clusters=TRUE){
   
   # Performing down-sampling, model does not require more than 5000 cells
   if (ncol(expr.norm)>5000)
     {
     selected=sample(1:ncol(expr.norm),5000)
-    expr.norm=expr.norm[,selected]
-  }
+    #expr.norm=as.matrix(expr.norm[,selected])
+    expr.norm=bigmemory::as.matrix(expr.norm[,selected])
+    }
+  else
+    expr.norm=bigmemory::as.matrix(expr.norm)
   
-  expr.norm=as.matrix(expr.norm)
   print(dim(expr.norm))
   gc()
 
@@ -1356,6 +1532,14 @@ fit.model = function(expr.norm,edges,lib.size){
   print("Clustering  ...")
   ht=hclust(D,method='ward.D')
   
+  
+  # if (plot.pre.clusters) # plotting the dendrogram
+  # {
+  #   d=as.dendrogram(ht)
+  #   plot(d)
+  # }
+  
+  
   # Adjusting max_group_size according to cell number
   if (num.samples<1250) max.group.size=0.10
   if (num.samples>=1250 & num.samples<=2000) max.group.size=0.08
@@ -1365,7 +1549,7 @@ fit.model = function(expr.norm,edges,lib.size){
   
   # Calculating optimal cutting depth for the pre-clustering
   print('Calculating optimal cut of dendrogram for pre-clustering')
-  MAX_CUT_LEVEL=0.6
+  MAX_CUT_LEVEL=0.9#0.6
   cut.level=MAX_CUT_LEVEL
   while (TRUE)
     {
@@ -1383,20 +1567,36 @@ fit.model = function(expr.norm,edges,lib.size){
       cut.level=MAX_CUT_LEVEL;
       }
   }
-  print(sprintf('Pre-clustering: cutting the tree at %.2f %%',cut.level))
+  
    #g.dendro = fviz_dend(ht, h=max(ht$height)*cut.level)
    mycl <- cutree(ht, h=max(ht$height)*cut.level)
    
+   if (plot.pre.clusters) # plotting the dendrogram
+   {
+     print('We are here')
+     d=as.dendrogram(ht)
+     tot.clusters=max(mycl)
+     palette=set.quantitative.palette(tot.clusters)
+     d = dendextend::color_branches(d, k = tot.clusters,col = palette)
+     plot(d)
+   }
+   
+   
+   print(sprintf('Pre-clustering: cutting the tree at %.2f %%: %g pre-clusters of median(mean) size %g (%g)',cut.level*100,max(mycl),median(as.numeric(table(mycl))),mean(as.numeric(table(mycl))) ))
    # For loop over the clusters
+
+   pb <- progress::progress_bar$new(format = "Analyzing cells [:bar] :current/:total (:percent) eta: :eta", total = length(mycl))
+   
    N=matrix(0,length(edges)-1,length(edges)-1)
    for (i in 1:max(mycl))
       {
        pos=which(mycl==i)
       if (length(pos)>3) # just to aviod bugs
         {
-        print(sprintf("Pre-cluster %g/%g",i,max(mycl)))
+        #print(sprintf("Pre-cluster %g/%g",i,max(mycl)))
         N=N+enumerate(expr.norm[,pos],edges,lib.size)
         }
+       pb$tick(length(pos))
       }
      
    
@@ -1408,6 +1608,9 @@ fit.model = function(expr.norm,edges,lib.size){
   
   print(sprintf("Computed Numerical Model. Enumerated a total of %g cases",sum(N)))
   gc()
+  
+
+  
   return(N_pct)
    
    
@@ -1428,11 +1631,11 @@ enumerate = function(expr.norm,edges,lib.size) {
   
   # Removing lowly expressed genes
   genes.low.exp =which(Rfast::rowsums(expr.norm>0)<=min.cells)
-  print(sprintf('Enumeration of combinations, removing  %g genes not expressed enough', length(genes.low.exp)))
+  #print(sprintf('Enumeration of combinations, removing  %g genes not expressed enough', length(genes.low.exp)))
   expr.norm=expr.norm[-genes.low.exp,]
   
   # Initiating variable N
-  print(sprintf('Calculating %g couples over %g cells',(num.samples*num.samples - num.samples)/2,num.samples))
+  #print(sprintf('Calculating %g couples over %g cells',(num.samples*num.samples - num.samples)/2,num.samples))
   N=matrix(0,length(edges)-1,length(edges)-1)
   
   # Enumerating  combinations
@@ -1487,12 +1690,14 @@ enumerate = function(expr.norm,edges,lib.size) {
 # }
 
 
-calculate.ODgenes = function(expr.norm,min_ODscore=3,favour='none') {
+calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,favour='none') {
 
-  expr.norm=as.matrix(expr.norm)
+  #print(dim(expr.norm))
+  gc()
+  expr.norm=bigmemory::as.matrix(expr.norm)
   gc()
 
-  start.time <- Sys.time() 
+  #start.time <- Sys.time() 
   
   num.samples=ncol(expr.norm) 
   num.genes=nrow(expr.norm) 
@@ -1501,8 +1706,10 @@ calculate.ODgenes = function(expr.norm,min_ODscore=3,favour='none') {
 
   
   # Discarding skewed genes
+  if (verbose)
+    print('Discarding skewed genes')
   expr.row.sorted=Rfast::sort_mat(expr.norm, by.row = TRUE) #MEMORY ALERT with Rfast::sort_mat
-  a=Rfast::rowmeans( expr.row.sorted[,(num.samples-skwed.cells):num.samples])
+  a=Rfast::rowmeans(expr.row.sorted[,(num.samples-skwed.cells):num.samples])
   La=log2(a)
   B=Rfast::rowVars(expr.row.sorted[,(num.samples-skwed.cells):num.samples], suma = NULL, std = TRUE)/a
   rm(expr.row.sorted)
@@ -1524,10 +1731,12 @@ calculate.ODgenes = function(expr.norm,min_ODscore=3,favour='none') {
   
   # Fitting OverDispersed genes
   okay=which( Rfast::rowsums(expr.norm>0)>min.cells )
-  print(sprintf('Using %g genes detected in at least >%g cells',length(okay),min.cells))
+  if (verbose)
+    print(sprintf('Using %g genes detected in at least >%g cells',length(okay),min.cells))
 
   okay=setdiff(okay,skewed_genes)
-  print(sprintf('Further reducing to %g geni after discarding skewed genes', length(okay)))
+  if (verbose)
+    print(sprintf('Further reducing to %g geni after discarding skewed genes', length(okay)))
 
   # STEP1: local fit of expression and standard deviation
   expr.norm=expr.norm[okay,]
@@ -1594,10 +1803,11 @@ calculate.ODgenes = function(expr.norm,min_ODscore=3,favour='none') {
   colnames(DFout)=c('ODgenes','ODscore')
   
   
-  print(sprintf('Determined  %g overdispersed genes',length(od_genes)))
+  if (verbose)
+    print(sprintf('Determined  %g overdispersed genes',length(od_genes)))
   
-  end.time <- Sys.time()
-  print(end.time - start.time)
+  #end.time <- Sys.time()
+  #print(end.time - start.time)
   
   gc()
   return(list(DFout,g1,g2,g3,g4))
@@ -1843,17 +2053,22 @@ generate.edges<-function(expr.data){
 
 transform.matrix<-function(expr.norm,case){
   
-  expr.norm=as.matrix(expr.norm)
+  
+  if (case==4)
+    expr.norm=bigmemory::as.matrix(expr.norm)
+  
   
   print('Computing transformed matrix ...')
-  # model=2. Log(x+1), 
-  if (case==2)
+  
+  if (case==2)# model=2. Log(x+1), 
     expr.norm=log2(expr.norm+1)
-  # capped to 95% expression
-  if (case==4)
+  
+  if (case==4)# capped to 95% expression
+    {
+    print('Capping expression gene by gene ...') 
     for (k in 1:nrow(expr.norm))
       expr.norm[k,]=cap.expression(expr.norm[k,])
-  
+    }
   gc()
   print('Normalizing expression gene by gene ...')  
   # each row (gene) normalized between [0:1]  
@@ -1861,6 +2076,13 @@ transform.matrix<-function(expr.norm,case){
   for (k in 1:nrow(expr.norm))
     expr.norm[k,]=shift.values(expr.norm[k,],0,1)
   #t(apply(expr.norm, 1,shift.values,A=0,B=1))
+  
+  if (case==4)
+    {
+    print('saving to swap transformed matrix ...')  
+    expr.norm=bigmemory::as.big.matrix(expr.norm)
+    }
+    
   
   gc()
   return(expr.norm)
@@ -1887,12 +2109,12 @@ interactive.plot<-function(x,y,...)
          X = 1:nrow(x)
          data=as.data.frame(cbind(X,x))
          colnames(data)=c("X","V1","V2")
-         p=plot_ly(data, x = ~X, y = ~V1, type = 'scatter', mode = 'lines+markers') %>% add_trace(y = ~V2, type = 'scatter', mode = 'lines+markers')
+         p=plotly::plot_ly(data, x = ~X, y = ~V1, type = 'scatter', mode = 'lines+markers') %>% add_trace(y = ~V2, type = 'scatter', mode = 'lines+markers')
         }
         else
         {
         data = data.frame(x, y)
-        p=plot_ly(data, x = ~x, y = ~y, type = 'scatter', mode = 'markers',...) 
+        p=plotly::plot_ly(data, x = ~x, y = ~y, type = 'scatter', mode = 'markers',...) 
         #p <- plot_ly(type = 'scatter',mode='markers',x = ~x, y=~y,...)
         }
     }
@@ -1900,7 +2122,7 @@ interactive.plot<-function(x,y,...)
     {
     x = 1:length(y)
     data = data.frame(x, y)
-    p=plot_ly(data, x = ~x, y = ~y, type = 'scatter', mode = 'lines+markers') 
+    p=plotly::plot_ly(data, x = ~x, y = ~y, type = 'scatter', mode = 'lines+markers') 
     }
   return(p)
   }
@@ -1958,39 +2180,16 @@ id.map<-function(gene.list,all.genes){
 #' @seealso    
 #' [ViewSignatures()]  
 
-bigscale = function (sce){
+bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE){
   
-  
- # Pre-processing
- print('Pre-processing) Removing null rows ')
- expr.data=counts(sce)
- gene.names=rownames(sce)
- exp.genes=which(Rfast::rowsums(expr.data)>0)
- if ((nrow(expr.data)-length(exp.genes))>0)
-    {
-    print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
-     sce <- SingleCellExperiment(assays = list(counts = expr.data[exp.genes,]))
-     rownames(sce)=as.matrix(gene.names[exp.genes]) 
-     rm(gene.names) 
-     rm(expr.data)
-     gc()
-    }
-
- 
- 
- # Assign the size factors 
- print('PASSAGE 1) Setting the size factors ....')
- sizeFactors(sce) = Rfast::colsums(assay(sce))
- 
  
  # Generate the edges for the binning
- print('PASSAGE 2) Setting the bins for the expression data ....')
- sce=setEdges(sce)
+ print('PASSAGE 1) Setting the bins for the expression data ....')
+ sce=preProcess(sce)
 
- 
   # Calculate and store the normalized expression data ()
  # !!!!!!! ADD AUTOMATIC USE OF BATCH.CORRECTED IF PRESENT
- print('PASSAGE 3) Storing in the single cell object the Normalized data ....')
+ print('PASSAGE 3) Storing the Normalized data ....')
  sce = storeNormalized(sce)
  
  # Compute the empirical model of the noise
@@ -2001,8 +2200,8 @@ bigscale = function (sce){
  #sce=remove.batch.effect(sce, batches=sce$batches, conditions=sce$conditions)
  
  # # Calculate and store the matrix with transformation = 4 (capped expression) for the signature plots
- # print('PASSAGE 5) Storing in the single cell object the Normalized-Transformed data (needed for some plots) ....')
- # sce = storeTransformed(sce)
+  print('PASSAGE 5) Storing the Normalized-Transformed data (needed for some plots) ....')
+ sce = storeTransformed(sce)
  
  # Compute the overdispersed genes
  print('PASSAGE 5) Computing Overdispersed genes ...')
@@ -2017,20 +2216,26 @@ bigscale = function (sce){
  
  # Cluster the cells
  print('PASSAGE 8) Computing the clusters ...')
- sce=setClusters(sce) 
+ sce=setClusters(sce,cut.depth=15)
  
   # Store the Pseudotime information and removes distances (not used anymore)
- print('PASSAGE 9) Storing the pseudotime order ...')
- sce=storePseudo(sce)
+ if (compute.pseudo)
+    {
+    print('PASSAGE 9) Storing the pseudotime order ...')
+    sce=storePseudo(sce)
+    }
+   
  
 # Use the gene Zscore information to organize them in groups of markers
  print('PASSAGE 10) Computing the markers (slowest part) ...')
- sce=computeMarkers(sce,speed.preset='slow')
+ sce=computeMarkers(sce,speed.preset=speed.preset)
+ 
  
  print('PASSAGE 11) Organizing the markers ...')
  sce=setMarkers(sce)
  
-
+ print('PASSAGE 12) Restoring full matrices of normalized counts and transformed counts...')
+ sce=restoreData(sce)
  
  
  # #viewStuff

@@ -9,14 +9,11 @@ viewSignatures(object, selected.cluster)
 \arguments{
 \item{sce}{object of the SingleCellExperiment class.}
 }
-\value{
-A numeric vector containing the bin limits
-}
 \description{
-Pots and heatmap with dendrogram, clusters, pseudotime, transcriptome complexity, custom user colData and expression values for markers and signtures.
+Plots and heatmap with dendrogram, clusters, pseudotime, transcriptome complexity, custom user colData and expression values for markers and signtures.
 }
 \examples{
-viewSignatures(sce) #plots all the signatures of correlated markers
-viewSignatures(sce,selected.cluster=1) # plots the markers (of all levels) of cluster 1
+viewSignatures(sce) # plots all the signatures of correlated markers
+viewSignatures(sce,selected.cluster=1) # plots the markers (of all specificity levels) of cluster 1
 
 }

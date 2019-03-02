@@ -1,52 +1,176 @@
-#' getEdges
+#' restoreData
 #'
-#' Retrives the values used to bin expressoin data-
+#' To be run as the last step of the analysis. Retrives data termporarily stored in  virtual memory and stores if safely in the single cell object.
+#' The data was put in virtual meomory in the first place to reduce RAM memory usage.
 #'
 #' @param sce object of the SingleCellExperiment class.
 #' 
-#' @return  A numeric vector containing the bin limits
+#' @return  object of the SingleCellExperiment class, with the assays \code{normcounts()} and \code{transcounts()} restored.
 #'
 #'
 #' @examples
-#' edges=getEdges(sce)
+#' sce=restoreData(sce)
 #'
 #' @export
 
 
-setGeneric(name="getEdges",
+setGeneric(name="restoreData",
            def=function(object)
            {
-             standardGeneric("getEdges")
+             standardGeneric("restoreData")
            }
 )
 
-setMethod(f="getEdges",
+setMethod(f="restoreData",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            return(object@int_metadata$edges)
+            
+            X=bigmemory::as.matrix(object@int_metadata$expr.norm.big)
+            normcounts(object)=Matrix::Matrix(X)
+            rm(X)
+            gc()
+            
+
+            X=bigmemory::as.matrix(object@int_metadata$transformed.big)
+            assay(object, "transcounts")=Matrix::Matrix(X)
+            rm(X)
+            gc()
+
+            return(object)
           }
 )
 
-setGeneric(name="setEdges",
+#' getMarkers
+#'
+#' Retrives a 2D list containing the markers of different specificity for each cluster.
+#' For more information check the online tutorial at www.github.com
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return  2D list, each row is a cluster, each column is a level.
+#'
+#' @examples
+#' Mlist=getMarkers(sce)
+#'
+#' @export
+
+
+setGeneric(name="getMarkers",
            def=function(object)
            {
-             standardGeneric("setEdges")
+             standardGeneric("getMarkers")
            }
 )
 
-setMethod(f="setEdges",
+setMethod(f="getMarkers",
           signature="SingleCellExperiment",
           definition=function(object)
           {
+            return(object@int_metadata$Mlist)
+          }
+)
+
+#' getSignatures
+#'
+#' Retrives the signatures of co-expressed genes.
+#' For more information check the online tutorial at www.github.com
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return  A list of co-expressed genes.
+#' 
+#' @examples
+#' Signatures=getSignatures(sce)
+#' 
+#' @export
+
+
+
+setGeneric(name="getSignatures",
+           def=function(object)
+           {
+             standardGeneric("getSignatures")
+           }
+)
+
+setMethod(f="getSignatures",
+          signature="SingleCellExperiment",
+          definition=function(object)
+          {
+            return(object@int_metadata$Signatures)
+          }
+)
+
+
+#' preProcess
+#'
+#' Pre-porocessing of the dataset. Removes genes with all zero values, sets the size factors for normalization and other interal things you do not need to know about.
+#' In the future I will add the possibility to add custom size factors here.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return  object of the SingleCellExperiment class, pre-processed.
+#' 
+#' @examples
+#' sce=preProcess(sce)
+#' 
+#' @export
+
+ 
+setGeneric(name="preProcess",
+           def=function(object)
+           {
+             standardGeneric("preProcess")
+           }
+)
+
+setMethod(f="preProcess",
+          signature="SingleCellExperiment",
+          definition=function(object)
+          {
+            
+            
+            # Removing zeros rows
+            print('Pre-processing) Removing null rows ')
+            expr.data=as.matrix(counts(object))
+            gene.names=rownames(object)
+            exp.genes=which(Rfast::rowsums(expr.data)>0)
+            if ((nrow(expr.data)-length(exp.genes))>0)
+            {
+              print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
+              object <- SingleCellExperiment(assays = list(counts = expr.data[exp.genes,]))
+              rownames(object)=as.matrix(gene.names[exp.genes]) 
+              rm(gene.names) 
+              rm(expr.data)
+              gc()
+            }
+
+            # Assign the size factors 
+            print('Setting the size factors ....')
+            sizeFactors(object) = Rfast::colsums(counts(object))
+            
+
             object@int_metadata$edges=generate.edges(counts(object))
-            #validObject(object)
+            
             return(object)
           }
 )
 
 
-# create a method to set the Model
+#' setModel
+#'
+#' Computes the numerical model at the core of all bigSCale2 analysis.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return  object of the SingleCellExperiment class, with the model stored inside.
+#' 
+#' @examples
+#' sce=setModel(sce)
+#' 
+#' @export
+
 setGeneric(name="setModel",
            def=function(object)
            {
@@ -58,14 +182,27 @@ setMethod(f="setModel",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            object@int_metadata$model=fit.model(expr.norm = object@int_metadata$normcounts,edges = getEdges(object),lib.size=sizeFactors(object))
-            gc()
-            #validObject(object)
+            if ('normcounts' %in% assayNames(object))
+              object@int_metadata$model=fit.model(expr.norm = normcounts(object),edges = object@int_metadata$edges,lib.size=sizeFactors(object))
+            else
+              object@int_metadata$model=fit.model(expr.norm = object@int_metadata$expr.norm.big,edges = object@int_metadata$edges,lib.size=sizeFactors(object))  
+            
             return(object)
           }
 )
 
-# create a method to view the Model
+#' viewModel
+#'
+#' Plots the numerical model calculated by bigSCale2. The numerical model is the core for all the analysis performed by bigSCale2.
+#'
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @examples
+#' viewModel(sce)
+#'
+#' @export
+
+
 setGeneric(name="viewModel",
            def=function(object)
            {
@@ -77,11 +214,27 @@ setMethod(f="viewModel",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            plot_ly(z=object@int_metadata$model) %>% add_surface()
+            p=plotly::plot_ly(z=object@int_metadata$model)
+            p=plotly::add_surface(p)
+            p
           }
 )
 
-# create a method to set overdispersed genes
+#' setODgenes
+#'
+#' Computes the numerical model at the core of all bigSCale2 analysis.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' @param min_ODscore the treshold (Z-score) used to select highly variable genes. By default \core{min_ODscore=2.33}. Increasing(decreasing) it results in less(more) highly variable genes.
+#' 
+#' @return  object of the SingleCellExperiment class, with the highly variable genes stored inside.
+#' 
+#' @examples
+#' sce=setODgenes(sce)
+#' sce=setODgenes(sce,min_ODscore=2) # I want to use more highly variable geness so I lower the threshold.
+#' 
+#' @export
+
 setGeneric(name="setODgenes",
            def=function(object,...)
            {
@@ -93,16 +246,33 @@ setMethod(f="setODgenes",
           signature="SingleCellExperiment",
           definition=function(object,...)
           {
+            
             #if ('counts.batch.removed' %in% assayNames(object))
             #    {
-                print('Calculating ODgenes using normalized expression counts')
-                out=calculate.ODgenes(expr.norm = object@int_metadata$normcounts,...)
+            
+            if ('normcounts' %in% assayNames(object))
+              out=calculate.ODgenes(expr.norm = normcounts(object),...)
+            else
+              out=calculate.ODgenes(expr.norm = object@int_metadata$expr.norm.big,...)
+              
+            # print('Calculating ODgenes using normalized expression counts')
+            # tot.cells=ncol(normcounts(object))
+            # if (tot.cells>10000)
+            #   {
+            #   ix=sample(tot.cells,10000)
+            #   out=calculate.ODgenes(expr.norm = normcounts(object)[,ix],...)
+            #   }
+            # else
+            #   out=calculate.ODgenes(expr.norm = normcounts(object),...)
+             
+               
             #    }
             # else
             #     {
             #     print('Calculating ODgenes using expression counts NOT batch corrected')
             #     out=calculate.ODgenes(expr.data = counts(object),...)
             #     }  
+            
             object@int_metadata$ODgenes.plots=out[2:5]
             dummy=as.matrix(out[[1]])
             object@int_elementMetadata$ODgenes=dummy[,1]
@@ -116,7 +286,18 @@ setMethod(f="setODgenes",
 
 
 
-# create a method to view processing overdispersed genes
+#' viewODgenes
+#'
+#' Visualizes a seris of plots showing how the highly variable genes were selected.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' 
+#' @examples
+#' viewODgenes(sce)
+#' @export
+
+
 setGeneric(name="viewODgenes",
            def=function(object)
            {
@@ -148,7 +329,7 @@ setMethod(f="remove.batch.effect",
           definition=function(object,batches,conditions)
           {
             if (missing(batches)) stop('You must provide the batches if you want to remove them ....')
-            assay(object, "counts.batch.removed")==remove.batches(expr.data = counts(object), batches.f = batches, samples.f = conditions)
+            assay(object, "counts.batch.removed")=remove.batches(expr.data = counts(object), batches.f = batches, samples.f = conditions)
             #validObject(object)
             return(object)
           }
@@ -156,7 +337,17 @@ setMethod(f="remove.batch.effect",
 
 
 
-# create a method to set cell to cell distances
+#' setDistances
+#'
+#' Computes cell to cell distances using the highly variable genes.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' @return  object of the SingleCellExperiment class, with cell to cell distances stored inside (in the virtual memory)
+#' 
+#' @examples
+#' sce=setDistances(sce)
+#' @export
+
 setGeneric(name="setDistances",
            def=function(object)
            {
@@ -168,7 +359,11 @@ setMethod(f="setDistances",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            object@int_metadata$D=compute.distances(expr.norm = object@int_metadata$normcounts,N_pct = object@int_metadata$model, edges = getEdges(object), driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object))
+            if ('normcounts' %in% assayNames(object))
+              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)))
+            else
+              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)))
+            
             gc()
             #validObject(object)
             return(object)
@@ -176,7 +371,18 @@ setMethod(f="setDistances",
 )
 
 
-# create a method to get the distances
+#' getDistances
+#'
+#' Retrives the cell to cell distances.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' @return  matrix with all cell to cell distances, recovered from virtual memory.
+#' 
+#' @examples
+#' sce=getDistances(sce)
+#' @export
+
+
 setGeneric(name="getDistances",
            def=function(object)
            {
@@ -188,11 +394,27 @@ setMethod(f="getDistances",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            return(object@int_metadata$D)
+            return(bigmemory::as.matrix(object@int_metadata$D))
           }
 )
 
-# create a method to set clusters
+
+#' setClusters
+#'
+#' Calculates the clusters of cell types.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' @param method.treshold (optional) by default \code{method.treshold=0.5}. Increasing(decreasing) it results in bigSCale2 partitioning in more(less) clusters.
+#' @param plot.clusters (optional) by default \code{plot.clusters=FALSE}. If \code{plot.clusters=TRUE} plots a dendrogram of the clusters while making the analysis.
+#' @param cut.depth (optional) by default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100%).
+#' @param customClust (optional) a numeric vector containg your custom cluster assignment, overrides all previous settings. 
+#' 
+#' @return  object of the SingleCellExperiment class with the clusters stored inside.
+#' 
+#' @examples
+#' sce=setClusters(sce)
+#' @export
+
 setGeneric(name="setClusters",
            def=function(object,customClust,...)
            {
@@ -222,7 +444,18 @@ setMethod(f="setClusters",
           }
 )
 
-# create a method to get clusters
+#' getClusters
+#'
+#' Retrives the clusters of cell types.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return  numeric vector with cluster assignemnts for each cell
+#' 
+#' @examples
+#' sce=getClusters(sce)
+#' @export
+
 setGeneric(name="getClusters",
            def=function(object,customClust)
            {
@@ -238,7 +471,19 @@ setMethod(f="getClusters",
           }
 )
 
-# create a method to store reduced dimension Tsne object with Rtsne
+#' storeTsne
+#'
+#' Calculates and stores the TSNE of your dataset. It uses the package \pkg{Rtsne}
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' @param ... passed to \code{Rtsne()}
+#' 
+#' @return   object of the SingleCellExperiment class with TSNE stored inside
+#' 
+#' @examples
+#' sce=storeTsne(sce)
+#' @export
+
 setGeneric(name="storeTsne",
            def=function(object,...)
            {
@@ -250,7 +495,9 @@ setMethod(f="storeTsne",
           signature="SingleCellExperiment",
           definition=function(object,...)
           {
-            tsne.data=Rtsne::Rtsne(X=as.dist(object@int_metadata$D),is_distance = TRUE, ...)
+            gc.out=gc()
+            print(gc.out)
+            tsne.data=Rtsne::Rtsne(X=bigmemory::as.matrix(object@int_metadata$D),is_distance = TRUE, ...)
             reducedDims(object)$TSNE=tsne.data$Y
             rm(tsne.data)
             gc()
@@ -258,7 +505,20 @@ setMethod(f="storeTsne",
           }
 )
 
-# create a method to store reduced dimension Tsne object with Rtsne
+
+#' storeUMAP
+#'
+#' Calculates and stores the UMAP of your dataset. It uses the package \pkg{UMAP}
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' @param ... passed to \code{UMAP()}
+#' 
+#' @return   object of the SingleCellExperiment class with UMAP stored inside
+#' 
+#' @examples
+#' sce=storeUMAP(sce)
+#' @export
+
 setGeneric(name="storeUMAP",
            def=function(object,...)
            {
@@ -279,9 +539,23 @@ setMethod(f="storeUMAP",
 )
 
 
-# create a method to view TSNE (+set same colors )
+#' viewReduced
+#'
+#' View 2D reduced dimentions. For the moment only supports TSNE.
+#'
+#' @param sce object of the SingleCellExperiment class.
+#' @param color.by \bold{clusters} to color by clusters, or a gene name to color by gene names ( must be the names used in \code{rownames()}, or a factor to color by custom grouping.
+#' @param transform.in adjustmet of gene expression for better visualuzation. Default is \bold{trim}, you can use \bold{log} to visualize \emph{log2(counts)+1}
+#' @param method can only be set to \bold{TSNE} for the moment
+#' 
+#' @examples
+#' viewReduced(sce,"clusters") # colors with clusters
+#' viewReduced(sce,"Arx") # colors with Arx gene expression. The gene name must be same as in rownames()
+#' 
+#' @export
+#' 
 setGeneric(name="viewReduced",
-           def=function(object,method ='UMAP',color.by,transform.in='trim')
+           def=function(object,color.by,transform.in='trim',method ='TSNE')
            {
              standardGeneric("viewReduced")
            }
@@ -289,7 +563,7 @@ setGeneric(name="viewReduced",
 
 setMethod(f="viewReduced",
           signature="SingleCellExperiment",
-          definition=function(object,method ='UMAP',color.by,transform.in='trim')
+          definition=function(object,color.by,transform.in='trim',method ='TSNE')
           {
             #if (missing(transform.in)) transform.in='trim'
             if (color.by[1]=='clusters') # we color by cluster
@@ -304,12 +578,12 @@ setMethod(f="viewReduced",
               print(gene.pos)
               if (transform.in=='log') 
                 {
-                color.by=log2((object@int_metadata$normcounts[gene.pos,]+1))
+                color.by=log2((normcounts(object)[gene.pos,]+1))
                 colorbar.title='LOG2(COUNTS)'
                 }
               if (transform.in=='trim') 
                 {
-                color.by=cap.expression((object@int_metadata$normcounts[gene.pos,]))
+                color.by=cap.expression((normcounts(object)[gene.pos,]))
                 colorbar.title='COUNTS'
                 }
               bigSCale.tsne.plot(tsne.data = reducedDim(object, method),color.by,fig.title=sprintf('%s expression',gene.name),colorbar.title)
@@ -322,16 +596,13 @@ setMethod(f="viewReduced",
 
 #' viewSignatures
 #'
-#' Pots and heatmap with dendrogram, clusters, pseudotime, transcriptome complexity, custom user colData and expression values for markers and signtures.
+#' Plots and heatmap with dendrogram, clusters, pseudotime, transcriptome complexity, custom user colData and expression values for markers and signtures.
 #'
 #' @param sce object of the SingleCellExperiment class.
 #' 
-#' @return  A numeric vector containing the bin limits
-#'
-#'
 #' @examples
-#' viewSignatures(sce) #plots all the signatures of correlated markers
-#' viewSignatures(sce,selected.cluster=1) # plots the markers (of all levels) of cluster 1
+#' viewSignatures(sce) # plots all the signatures of correlated markers
+#' viewSignatures(sce,selected.cluster=1) # plots the markers (of all specificity levels) of cluster 1
 #' 
 #' @export
 
@@ -347,28 +618,37 @@ setMethod(f="viewSignatures",
           signature="SingleCellExperiment",
           definition=function(object,selected.cluster)
           {
-            print('Computing normalized - transformed matrix ... ') 
-            data.dummy=transform.matrix(object@int_metadata$normcounts,case = 4)
             if (missing(selected.cluster))
-              bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = data.dummy, signatures = object@int_metadata$Signatures,size.factors = sizeFactors(object),type='signatures') 
+              bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = assay(sce,'transcounts'), signatures = object@int_metadata$Signatures,size.factors = sizeFactors(object),type='signatures') 
             else
             {
               Mlist=object@int_metadata$Mlist
               signatures=list()
               for (k in 1:ncol(Mlist))
               {
-                dummy=Mlist[[selected.cluster,k]]
-                signatures[[k]]=dummy$GENE_NUM
+                #dummy=Mlist[[selected.cluster,k]]
+                signatures[[k]]=Mlist[[selected.cluster,k]]#dummy$GENE_NUM
               }
-              bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = data.dummy, signatures = signatures,size.factors = sizeFactors(object),type='levels')  
+              bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = assay(sce,'transcounts'), signatures = signatures,size.factors = sizeFactors(object),type='levels')  
             }
           }
 )
 
 
-# create a method to store reduced dimension Tsne objct with Rtsne
+#' storeNormalized
+#'
+#' Calculates and stores the normalized counts
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return   object of the SingleCellExperiment class with normalized counts saved inside (in the virtual memory)
+#' 
+#' @examples
+#' sce=storeNormalized(sce)
+#' @export
+
 setGeneric(name="storeNormalized",
-           def=function(object,...)
+           def=function(object)
            {
              standardGeneric("storeNormalized")
            }
@@ -376,23 +656,40 @@ setGeneric(name="storeNormalized",
 
 setMethod(f="storeNormalized",
           signature="SingleCellExperiment",
-          definition=function(object)
+          definition=function(object) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
           {
             dummy=counts(object)
             counts(object)=c()
             gc()
+            
             library.size=sizeFactors(object)
             avg.library.size=mean(library.size)
-            for (k in 1:ncol(dummy)) dummy[,k]=dummy[,k]/library.size[k]*avg.library.size
-            #dummy=dummy/rep_row(library.size, nrow(dummy))*mean(library.size)
-            object@int_metadata$normcounts=Matrix::Matrix(dummy)
-            rm(dummy)
+            for (k in 1:ncol(dummy))
+              dummy[,k]=dummy[,k]/library.size[k]*avg.library.size
             gc()
+            
+            print('Saving to swap the normalized expression matrix...')
+            dummy=bigmemory::as.big.matrix(dummy)
+            object@int_metadata$expr.norm.big=dummy
+            gc.out=gc()
+            print(gc.out)
+            
             return(object)
           }
 )
 
-# create a method to store matrix normalized and transformed for the signature plots
+#' storeTransformed
+#'
+#' Calculates and stores a matrix of transformed counts used by bigSCale to make some plots.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return   object of the SingleCellExperiment class with transformed counts saved inside (in the virtual memory)
+#' 
+#' @examples
+#' sce=storeTransformed(sce)
+#' @export
+
 setGeneric(name="storeTransformed",
            def=function(object,...)
            {
@@ -404,13 +701,31 @@ setMethod(f="storeTransformed",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            assay(object,'transformed4')=transform.matrix(normcounts(object),case = 4)
+            object@int_metadata$transformed.big=transform.matrix(object@int_metadata$expr.norm.big,case = 4)
             return(object)
           }
 )
 
 
-# create a method to store reduced dimension Tsne objct with Rtsne
+#' computeMarkers
+#'
+#' Calculates markers and differentially expressed genes.
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' @param speed.preset by default \code{speed.preset='slow'}. It regulates the speed vs. accuracy in the computation of the marker and differentially expressed genes.
+#' \itemize{
+#'   \item {\bold{slow}} { Reccomended for most datasets, provides best marker accuracy but slowest computational time.} 
+#'   \item {\bold{normal}} {A balance between marker accuracy and computational time. }
+#'   \item {\bold{fast}} {Fastest computational time, if you are in a hurry and you have lots of cell (>15K) you can use this}
+#' }
+#' 
+#' 
+#' @return   object of the SingleCellExperiment class with raw data of differential expression safely stored inside in an hidden place.
+#' 
+#' @examples
+#' sce=computeMarkers(sce)
+#' @export
+
 setGeneric(name="computeMarkers",
            def=function(object,...)
            {
@@ -422,14 +737,31 @@ setMethod(f="computeMarkers",
           signature="SingleCellExperiment",
           definition=function(object,...)
           {
-            out=calculate.marker.scores(expr.norm = object@int_metadata$normcounts, clusters=getClusters(object), N_pct=object@int_metadata$model, edges = getEdges(object), lib.size = sizeFactors(object), ...)
+            if ('normcounts' %in% assayNames(object))
+              out=calculate.marker.scores(expr.norm = normcounts(object), clusters=getClusters(object), N_pct=object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object), ...)
+            else
+              out=calculate.marker.scores(expr.norm = object@int_metadata$expr.norm.big, clusters=getClusters(object), N_pct=object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object), ...)
+            
             object@int_metadata$Mscores=out$Mscores
             object@int_metadata$Fscores=out$Fscores
             return(object)
           }
 )
 
-# create a method to store reduced dimension Tsne objct with Rtsne
+#' setMarkers
+#'
+#' Organizes the differentially expressed genes in markers of different levels and signatures
+#'
+#' @param sce object of the SingleCellExperiment class.
+#' @param cutoff Z-score cutoff to retain only genes with significant changes of expression. By default \code{cutoff=3}. If you feel you have too many(not enough) markers, decrease its value.
+#' 
+#' @return   object of the SingleCellExperiment class with markers and signatures safely stored inside.
+#' 
+#' @examples
+#' sce=setMarkers(sce)
+#' 
+#' @export
+
 setGeneric(name="setMarkers",
            def=function(object, ...) 
            {
@@ -442,7 +774,7 @@ setMethod(f="setMarkers",
           definition=function(object, ...)
           {
             Mlist=organize.markers( Mscores = object@int_metadata$Mscores , Fscores = object@int_metadata$Fscores , gene.names = rownames(object), ... )
-            object@int_metadata$Signatures=calculate.signatures( Mscores = object@int_metadata$Mscores , ... )
+            object@int_metadata$Signatures=calculate.signatures( Mscores = object@int_metadata$Mscores, gene.names = rownames(object), ... )
             # retriving numer of markers for each cluster
             n.markers=matrix(0,nrow(Mlist),ncol(Mlist))
             row.names=c()
@@ -466,7 +798,17 @@ setMethod(f="setMarkers",
           }
 )
 
-# create a method to view TSNE (+set same colors )
+#' viewReduced
+#'
+#' View 2D reduced dimentions. For the moment only supports TSNE.
+#'
+#' @param sce object of the SingleCellExperiment class.
+#' @param gene.list a character vector with a list of gene names
+#' @examples
+#' viewGeneBarPlot(sce,c("Arx","NeuroD1","Aqp4")) # colors with clusters
+#' @export
+#' 
+#' 
 setGeneric(name="viewGeneBarPlot",
            def=function(object,gene.list)
            {
@@ -483,10 +825,10 @@ setMethod(f="viewGeneBarPlot",
             {
             pos=grep(pattern = sprintf('\\b%s\\b',gene.list[k]),x=rownames(object))
             print(pos)
-            p[[k]]=bigSCale.barplot(ht = object@int_metadata$htree,clusters = getClusters(object),gene.expr = object@int_metadata$normcounts[pos,],gene.name=gene.list[k])
+            p[[k]]=bigSCale.barplot(ht = object@int_metadata$htree,clusters = getClusters(object),gene.expr = normcounts(object)[pos,],gene.name=gene.list[k])
           }
           if (length(gene.list)>1)
-            grid.arrange(grobs=p)
+            gridExtra::grid.arrange(grobs=p)
           else
             { 
             plot(p[[1]])
@@ -496,7 +838,19 @@ setMethod(f="viewGeneBarPlot",
           }
 )
 
-# create a method to view TSNE (+set same colors )
+#' viewGeneViolin
+#'
+#' View violin plots
+#'
+#' @param sce object of the SingleCellExperiment class.
+#' @param gene.name character name of the gene to plot. Must be same names use in \code{rownames()}
+#' @param groups optional grouping  \code{factor} to be used in place of clusters
+#' @examples
+#' viewGeneViolin(sce,"Penk")
+#' viewGeneViolin(sce,"Penk",groups=custom.groups) # custom.groups must be a factor variable
+#' @export
+#' 
+#' 
 setGeneric(name="viewGeneViolin",
            def=function(object,gene.name,groups)
            {
@@ -526,10 +880,21 @@ setMethod(f="viewGeneViolin",
           }
 )
 
+#' storePseudo
+#'
+#' Computes and stores the pseudotime
+#'
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return   object of the SingleCellExperiment class with pasudotime data stored inside.
+#' 
+#' @examples
+#' sce=storePseudo(sce)
+#' @export
 
-# create a method to store matrix normalized and transformed for the signature plots
+
 setGeneric(name="storePseudo",
-           def=function(object,...)
+           def=function(object)
            {
              standardGeneric("storePseudo")
            }
@@ -539,29 +904,66 @@ setMethod(f="storePseudo",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            gc()
+           
+
+            D=bigmemory::as.matrix(object@int_metadata$D)
+            # gc()
+            # 
+            # ix=sample(ncol(D)^2,max(2000000,ncol(D)^2))
+            # cutoff=quantile(D[ix],0.25)
+            # print(sprintf('PSEUDOTIME: Using %.2f as cutoff for cleaning the distances',cutoff))
+            # 
+            # for (k in 1:nrow(D))
+            #   {
+            #   ix=which(D[k,]>cutoff)
+            #   if ( length(ix)<(nrow(D)-10) ) # at leats 10 close neighbours, otherwise leave all numbers
+            #       D[k,ix]=0
+            #   }
+            # gc()
+            # D=Matrix::Matrix(D)
+            # gc()
             print('Generating the graph ...') # CRUSHING POINT!!!!
-            G=graph_from_adjacency_matrix(adjmatrix = object@int_metadata$D,mode = 'undirected',weighted = TRUE)
-            print('Deleting cell-cell distances (not needed anymore, to save memory) ...')
-            object@int_metadata$D=c()
+            G=igraph::graph_from_adjacency_matrix(adjmatrix = D,mode = 'undirected',weighted = TRUE)
+            rm(D)
             gc()
+            
             print('Computing MST ...')
-            object@int_metadata$minST=mst(G, weights = E(G)$weight,algorithm = 'prim')
+            object@int_metadata$minST=igraph::mst(G, weights = igraph::E(G)$weight,algorithm = 'prim')
             print('Computing the layout ...')
+
             #correcting for outliers in the weights
             #weights.corrected=E(object@int_metadata$minST)$weight
             #outliers=which(weights.corrected>quantile(weights.corrected,0.99))
             #weights.corrected[outliers]=quantile(weights.corrected,0.99)
             #object@int_metadata$minST.layout=layout_with_kk(graph = object@int_metadata$minST,weights = weights.corrected)
-            object@int_metadata$minST.layout=layout_with_kk(graph = object@int_metadata$minST,weights = NA)
+
+            object@int_metadata$minST.layout=igraph::layout_with_kk(graph = object@int_metadata$minST,weights = NA)
             print('Computing the pseudotime ...')
             object$pseudotime=compute.pseudotime(object@int_metadata$minST)
+            
+            gc.out=gc()
+            print(gc.out)
             return(object)
           }
 )
 
 
-# create a method to store matrix normalized and transformed for the signature plots
+#' ViewPseudo
+#'
+#' View the Pseudotime and colors the cell with different options
+#'
+#' @param sce object of the SingleCellExperiment class.
+#' @param color.by \bold{clusters} to color cell by the cluster of belonging. \bold{pseudo} to color cell by the pseudotime. A \bold{gene name} to color cell by its expression.
+#' @param transform.in adjustmet of gene expression for better visualuzation. Default is \bold{trim}, you can use \bold{log} to visualize \emph{log2(counts)+1}
+#' 
+#' 
+#' @examples
+#' ViewPseudo(sce,'clusters')
+#' ViewPseudo(sce,'pseudo')
+#' ViewPseudo(sce,'Olig1')
+#' @export
+
+
 setGeneric(name="ViewPseudo",
            def=function(object,color.by,transform.in)
            {

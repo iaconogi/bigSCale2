@@ -14,7 +14,7 @@ NumericVector DE_Rcpp(NumericMatrix expr_norm_1,NumericMatrix expr_norm_2, Numer
   int A,B;
   int k,pos_a,pos_b;
   double mean_lib_size;
-  printf("Rcpp: gene_num=%d,sample_num_1=%d,sample_num_2=%d\n",gene_num,sample_num_1,sample_num_2);
+  //printf("Rcpp: gene_num=%d,sample_num_1=%d,sample_num_2=%d\n",gene_num,sample_num_1,sample_num_2);
 
   
   for (k=0; k<(gene_num*2); k++)
