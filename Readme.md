@@ -203,7 +203,7 @@ ViewPseudo(sce,color.by = 'clusters') # colors by clusters
 ```{r}
 ViewPseudo(sce,color.by = 'Stmn3') # colors by a specific gene
 ```
-![](figures/stmn3.png)
+![](figures/stmn.png)
 
 ### **Advanced use**
 The `bigscale()` function which performs all the analysis at once is actually a wrapper for a series of sub-functions.
