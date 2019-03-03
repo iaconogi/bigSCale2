@@ -67,7 +67,8 @@
 <br />
 
 *bigSCale2* works with the SingleCellExperiment class. This class is a container meant to store in an organized way single cell data.
-*bigScale2* requires two elements to be present in the single cell class: the counts `counts()` and the gene names `rownames()`. **The counts must be raw counts! The genes must no be filtered, aside from removing, if you want, the gene with all zero values. **<br />
+*bigScale2* requires two elements to be present in the single cell class: the counts `counts()` and the gene names `rownames()`.**The counts must be raw counts! The genes must no be filtered, aside from removing, if you want, the gene with all zero values.**
+<br />
 Let us first load an example dataset : 3005 single cells from adult mouse brain [Zeisel 2015](http://science.sciencemag.org/content/347/6226/1138.abstract)
 
 
