@@ -14,7 +14,7 @@
 *bigSCale* is formed by three sub-tools which can be used either independently or in synergy. Each sub-tool has its own tutorial.<br />
 *bigSCale 2 Core* allows to cluster, phenotype and perform pseudo-time analysis. It's the main tool of bigSCale, published in [Iacono 2018](https://genome.cshlp.org/content/28/6/878).<br />
 *bigSCale 2 GRN* is the newest addition: it is the module to infer gene regulatory networks from single cell data. [Iacono 2019](https://www.biorxiv.org/content/10.1101/446104v1)<br />
-*bigSCale 2 iCells* allows to reduce the dimension of any given large dataset (also millions of cells, without any loss of information) so that it can be easily and quickly analyzed by any tool.The resulting dataset has less cells with higher quality, so it can be analyzed better. It DOES NOT require any external tool such as the loom framework. 
+*bigSCale 2 iCells* allows to reduce the dimension of any given large dataset (also millions of cells, wothout any loss of information) so that it can be easily and quickly analyzed by any tool.The resulting dataset has less cells with higher quality, so it can be analyzed better. It DOES NOT require any external tool such as the loom framework. 
 
 
 
@@ -35,9 +35,9 @@
 * [Advanced use](#advanced-use)
     
 
-### bigSCale 2 Gene Regulatory Networks
+### **bigSCale 2 Gene Regulatory Networks**
 
-* [Quick start and basic use](#bigscale-2-gene-regulatory-networks)
+* [Quick start and basic use](#bigscale-2-gene-regulatory-networks-tutorial)
     + [Inferring the networks](#inferring-the-networks)
     + [Comparing node centrality](#comparing-node-centrality)
     + [Integration with DE](#integration-with-DE)
@@ -67,7 +67,8 @@
 <br />
 
 *bigSCale2* works with the SingleCellExperiment class. This class is a container meant to store in an organized way single cell data.
-*bigScale2* requires two elements to be present in the single cell class: the counts `counts()` and the gene names `rownames()`.**The counts must be raw counts! The genes must no be filtered, aside from removing, if you want, the gene with all zero values.**
+*bigScale2* requires two elements to be present in the single cell class: the counts `counts()` and the gene names `rownames()`.
+**The counts must be raw counts! The genes must no be filtered, aside from removing, if you want, the gene with all zero values.**
 <br />
 Let us first load an example dataset : 3005 single cells from adult mouse brain [Zeisel 2015](http://science.sciencemag.org/content/347/6226/1138.abstract)
 
@@ -204,7 +205,7 @@ ViewPseudo(sce,color.by = 'clusters') # colors by clusters
 ```{r}
 ViewPseudo(sce,color.by = 'Stmn3') # colors by a specific gene
 ```
-![](figures/stmn.png)
+![](figures/stmn3.png)
 
 ### **Advanced use**
 The `bigscale()` function which performs all the analysis at once is actually a wrapper for a series of sub-functions.
@@ -286,12 +287,12 @@ sce=restoreData(sce)
 
 
 
-# **bigSCale 2 Gene Regulatory Networks**
+# bigSCale 2 Gene Regulatory Networks tutorial
 
 **Important:** This short tutorial will show how to infer regulatory networks from single cell data and quantify gene centrality (and some other stuff). Clearly, graph theory is a large word, and there are lots of analysis other than node centrality that you can potentially perform on the networks. We leave this up to you!
 
 
-### Inferring the networks 
+###  Inferring the networks
 
 *bigSCale2* allows to infer the putative gene regulatory network (GRN) from any single cell dataset. Here, we will show how to infer the GRNs from healthy pancreas and from type 2 diabetes (T2D) pancreas and compare them. This is the same pancreas dataset used in our [paper](https://www.biorxiv.org/content/10.1101/446104v1), from [Segerstolpe 2016](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5069352/). Let's load the data.
 

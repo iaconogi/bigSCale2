@@ -2167,6 +2167,7 @@ id.map<-function(gene.list,all.genes){
 #'   \item {\bold{normal}} {A balance between marker accuracy and computational time. }
 #'   \item {\bold{fast}} {Fastest computational time, if you are in a hurry and you have lots of cell (>15K) you can use this}
 #' }
+#' @param memory.save enables a series of tricks to reduce RAM memory usage. Aware of one case (in linux) in which this option causes irreversible error.
 #' 
 #' @return  An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over
 #'
@@ -2180,7 +2181,7 @@ id.map<-function(gene.list,all.genes){
 #' @seealso    
 #' [ViewSignatures()]  
 
-bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE){
+bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TRUE){
   
  
  # Generate the edges for the binning
@@ -2216,7 +2217,7 @@ bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE){
  
  # Cluster the cells
  print('PASSAGE 8) Computing the clusters ...')
- sce=setClusters(sce,cut.depth=15)
+ sce=setClusters(sce)
  
   # Store the Pseudotime information and removes distances (not used anymore)
  if (compute.pseudo)
