@@ -5,7 +5,7 @@
 \title{Gene regulatory network}
 \usage{
 compute.network(expr.data, gene.names, clustering = "recursive",
-  quantile.p = 0.998, speed.preset = "slow")
+  quantile.p = 0.998, speed.preset = "slow", previous.output = NA)
 }
 \arguments{
 \item{expr.data}{matrix of expression counts. Works also with sparse matrices of the \pkg{Matrix} package.}
@@ -27,6 +27,8 @@ compute.network(expr.data, gene.names, clustering = "recursive",
   \item {\bold{normal}} {A balance between network quality and computational time. }
   \item {\bold{fast}} {Fastest computational time, worste network quality.}
 }}
+
+\item{previous.output}{previous output of \code{compute.network()} can be passed as input to evaluate networks with a different quantile.p without re-running the code. Check the online tutorial at https://github.com/iaconogi/bigSCale2.}
 }
 \value{
 A list with the following items:

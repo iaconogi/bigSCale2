@@ -273,6 +273,7 @@ polish.graph = function (G)
 #'   \item {\bold{normal}} {A balance between network quality and computational time. }
 #'   \item {\bold{fast}} {Fastest computational time, worste network quality.}
 #' }
+#' @param previous.output previous output of \code{compute.network()} can be passed as input to evaluate networks with a different quantile.p without re-running the code. Check the online tutorial at https://github.com/iaconogi/bigSCale2.
 #' 
 #' @return  A list with the following items:
 #' \itemize{
@@ -292,97 +293,111 @@ polish.graph = function (G)
 #' @export
 
   
-compute.network = function (expr.data,gene.names,clustering='recursive',quantile.p=0.998,speed.preset='slow'){
+compute.network = function (expr.data,gene.names,clustering='recursive',quantile.p=0.998,speed.preset='slow',previous.output=NA){
 
-  
-  
-expr.data=as.matrix(expr.data)
-
-
-# Part 1) Initial processing of the dataset  ************************************************************
-print('Pre-processing) Removing null rows ')
-exp.genes=which(Rfast::rowsums(expr.data)>0)
-if ((nrow(expr.data)-length(exp.genes))>0)
-  print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
-expr.data=expr.data[exp.genes,]
-gc()
-gene.names=gene.names[exp.genes]
-tot.cells=Rfast::rowsums(expr.data>0)
-
-print('PASSAGE 1) Setting the size factors ....')
-lib.size = Rfast::colsums(expr.data)
-  
-  
-print('PASSAGE 2) Setting the bins for the expression data ....')
-edges=generate.edges(expr.data)
-  
-print('PASSAGE 3) Storing in the single cell object the Normalized data ....')
-avg.library.size=mean(lib.size)
-for (k in 1:ncol(expr.data)) expr.data[,k]=expr.data[,k]/lib.size[k]*avg.library.size
-expr.data.norm=expr.data
-rm(expr.data)
-expr.data.norm=Matrix::Matrix(expr.data.norm)
-gc()
-  
-print('PASSAGE 4) Computing the numerical model (can take from a few minutes to 30 mins) ....')
-model=fit.model(expr.data.norm,edges,lib.size)
-gc()
-  
-print('PASSAGE 5) Clustering ...')
-if (clustering=="direct" | clustering=="recursive")
-  #mycl=sample(real.clusters)
-  mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size,fragment=TRUE)
-else
+if (is.na(previous.output))  
   {
-  ODgenes=calculate.ODgenes(expr.data.norm)
-  dummy=as.matrix(ODgenes[[1]])
-  ODgenes=which(dummy[,1]==1)
-  print('Computing distances ...')
-  D=compute.distances(expr.norm = expr.data.norm,N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size)
-  mycl=bigscale.cluster(D,plot.clusters = TRUE,method.treshold = 0.5)$clusters
-  }
-tot.clusters=max(mycl)
-
-
-
-
-#filtering the number of genes
-pass.cutoff=which(tot.cells>(max(15,ncol(expr.data.norm)*0.005)))
-#pass.cutoff=which(tot.cells>0)
-gene.names=gene.names[pass.cutoff]
-
-
-if (clustering=="direct")
-    {
-    print(sprintf('Assembling cluster average expression for %g genes expressed in at least %g cells',length(pass.cutoff),max(15,ncol(expr.data.norm)*0.005)))
-    tot.scores=matrix(0,length(pass.cutoff),tot.clusters)
-    for (k in 1:(tot.clusters))
-        tot.scores[,k]=Rfast::rowmeans(as.matrix(expr.data.norm[pass.cutoff,which(mycl==k)]))
-    tot.scores=log2(tot.scores+1)
-    }
+  
+  expr.data=as.matrix(expr.data)
+  
+  
+  # Part 1) Initial processing of the dataset  ************************************************************
+  print('Pre-processing) Removing null rows ')
+  exp.genes=which(Rfast::rowsums(expr.data)>0)
+  if ((nrow(expr.data)-length(exp.genes))>0)
+    print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
+  expr.data=expr.data[exp.genes,]
+  gc()
+  gene.names=gene.names[exp.genes]
+  tot.cells=Rfast::rowsums(expr.data>0)
+  
+  print('PASSAGE 1) Setting the size factors ....')
+  lib.size = Rfast::colsums(expr.data)
+    
+    
+  print('PASSAGE 2) Setting the bins for the expression data ....')
+  edges=generate.edges(expr.data)
+    
+  print('PASSAGE 3) Storing in the single cell object the Normalized data ....')
+  avg.library.size=mean(lib.size)
+  for (k in 1:ncol(expr.data)) expr.data[,k]=expr.data[,k]/lib.size[k]*avg.library.size
+  expr.data.norm=expr.data
+  rm(expr.data)
+  expr.data.norm=Matrix::Matrix(expr.data.norm)
+  gc()
+    
+  print('PASSAGE 4) Computing the numerical model (can take from a few minutes to 30 mins) ....')
+  model=fit.model(expr.data.norm,edges,lib.size)
+  gc()
+    
+  print('PASSAGE 5) Clustering ...')
+  if (clustering=="direct" | clustering=="recursive")
+    #mycl=sample(real.clusters)
+    mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size,fragment=TRUE)
   else
     {
-    print(sprintf('Calculating Zscores for %g genes expressed in at least %g cells',length(pass.cutoff),max(15,ncol(expr.data.norm)*0.005)))  
-    Mscores=calculate.marker.scores(expr.norm = expr.data.norm[pass.cutoff,], clusters=mycl, N_pct=model, edges = edges, lib.size = lib.size, speed.preset = speed.preset)$Mscores
-
-    rm(expr.data.norm)
-    gc()
-    
-    tot.scores=matrix(0,length(Mscores[[1,2]]),(tot.clusters*(tot.clusters-1)/2))
-    
-    # assembling the matrix of Mscores
-    counts=1
-    for (k in 1:(tot.clusters-1))
-      for (h in (k+1):tot.clusters)
-      {
-        tot.scores[,counts]=Mscores[[k,h]]
-        counts=counts+1 
-      }
+    ODgenes=calculate.ODgenes(expr.data.norm)
+    dummy=as.matrix(ODgenes[[1]])
+    ODgenes=which(dummy[,1]==1)
+    print('Computing distances ...')
+    D=compute.distances(expr.norm = expr.data.norm,N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size)
+    mycl=bigscale.cluster(D,plot.clusters = TRUE,method.treshold = 0.5)$clusters
     }
+  tot.clusters=max(mycl)
+  
+  
+  
+  
+  #filtering the number of genes
+  pass.cutoff=which(tot.cells>(max(15,ncol(expr.data.norm)*0.005)))
+  #pass.cutoff=which(tot.cells>0)
+  gene.names=gene.names[pass.cutoff]
+  
+  
+  if (clustering=="direct")
+      {
+      print(sprintf('Assembling cluster average expression for %g genes expressed in at least %g cells',length(pass.cutoff),max(15,ncol(expr.data.norm)*0.005)))
+      tot.scores=matrix(0,length(pass.cutoff),tot.clusters)
+      for (k in 1:(tot.clusters))
+          tot.scores[,k]=Rfast::rowmeans(as.matrix(expr.data.norm[pass.cutoff,which(mycl==k)]))
+      tot.scores=log2(tot.scores+1)
+      }
+    else
+      {
+      print(sprintf('Calculating Zscores for %g genes expressed in at least %g cells',length(pass.cutoff),max(15,ncol(expr.data.norm)*0.005)))  
+      Mscores=calculate.marker.scores(expr.norm = expr.data.norm[pass.cutoff,], clusters=mycl, N_pct=model, edges = edges, lib.size = lib.size, speed.preset = speed.preset)$Mscores
+  
+      rm(expr.data.norm)
+      gc()
+      
+      tot.scores=matrix(0,length(Mscores[[1,2]]),(tot.clusters*(tot.clusters-1)/2))
+      
+      # assembling the matrix of Mscores
+      counts=1
+      for (k in 1:(tot.clusters-1))
+        for (h in (k+1):tot.clusters)
+        {
+          tot.scores[,counts]=Mscores[[k,h]]
+          counts=counts+1 
+        }
+      }
+  tot.scores=t(tot.scores)
+  }
+  
+  else
+  {
+    print('It appears you want to tweak previously created networks with a different quantile.p, proceeding ....')
+    tot.scores=out$tot.scores
+    gene.names=colnames(out$correlations)
+    mycl=out$clusters
+    model=out$model
+    rm(out)
+    gc()
+  }
+  
+  
 
 
-
-tot.scores=t(tot.scores)
 
 
 o=gc()
