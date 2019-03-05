@@ -4,9 +4,11 @@
 \alias{storeNormalized}
 \title{storeNormalized}
 \usage{
-storeNormalized(object)
+storeNormalized(object, memory.save)
 }
 \arguments{
+\item{memory.save}{enables a series of tricks to reduce RAM memory usage. Aware of one case (in linux) in which this option causes irreversible error.}
+
 \item{sce}{object of the SingleCellExperiment class.}
 }
 \value{

@@ -4,7 +4,8 @@
 \alias{viewReduced}
 \title{viewReduced}
 \usage{
-viewReduced(object, color.by, transform.in = "trim", method = "TSNE")
+viewReduced(object, color.by = "clusters", transform.in = "trim",
+  method = "TSNE")
 }
 \arguments{
 \item{color.by}{\bold{clusters} to color by clusters, or a gene name to color by gene names ( must be the names used in \code{rownames()}, or a factor to color by custom grouping.}

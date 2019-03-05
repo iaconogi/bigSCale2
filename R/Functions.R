@@ -629,7 +629,7 @@ bigSCale.barplot = function (ht,clusters,gene.expr,gene.name){
   
   
   
-bigSCale.signature.plot = function (ht,clusters,colData=NA,data.matrix,signatures,size.factors,type){
+bigSCale.signature.plot = function (ht,clusters,colData,data.matrix,signatures,size.factors,type){
   
   gc()
   
@@ -670,7 +670,7 @@ bigSCale.signature.plot = function (ht,clusters,colData=NA,data.matrix,signature
   
   
   # 3) Plotting user custom colData of single cell object
-  if (!is.na(colData) & ncol(colData)>0 & length(colData)>0)
+  if (ncol(colData)>0 & length(colData)>0)
   {
     names.user.metadata=colnames(colData)
     for (k in 1:ncol(colData))
@@ -964,16 +964,18 @@ bigscale.DE = function (expr.norm, N_pct, edges, lib.size, group1,group2,speed.p
   
 #print('Starting DE')  
 gc.out=gc()
-#print(gc.out)
-  
 
-#POSSIBLY FASTER PASSING DIRECTLY THE TWO MATRICES WITHOUT GROUP1/GROUP2
-start=Sys.time()
+  
 
 
 num.genes.initial=nrow(expr.norm)
 
-expr.norm=bigmemory::as.matrix(expr.norm[,c(group1,group2)])
+if (class(expr.norm)=='big.matrix')
+  expr.norm=bigmemory::as.matrix(expr.norm[,c(group1,group2)])
+else
+  expr.norm=as.matrix(expr.norm[,c(group1,group2)])
+
+
 group1=c(1:length(group1))
 group2=c((length(group1)+1):(length(group1)+length(group2)))
 
@@ -1235,6 +1237,8 @@ gc()
   
   if (class(D)=='big.matrix')
     D=bigmemory::as.matrix(D)
+  if (class(D)=='dgCMatrix')
+    error('Error of the stupid biSCale2 programmer!')
   
 ht=hclust(as.dist(D),method='ward.D')
 
@@ -1334,7 +1338,11 @@ return(list(clusters=clusters,ht=ht))
 
 compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size){
   
-  #expr.norm=as.matrix(expr.norm)
+  if (class(expr.norm)=='big.matrix')
+    expr.norm=bigmemory::as.matrix(expr.norm)
+  else
+    expr.norm=as.matrix(expr.norm)
+  
   gc()
   
 
@@ -1382,7 +1390,7 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   # Vector is a trick to increase speed in the next C++ part
 
   indA.size=1000000
-  expr.driving.norm.out<<-expr.driving.norm
+
   critical.value=max(lib.size)*max(expr.driving.norm)
   if (critical.value>indA.size/10)
     {
@@ -1489,17 +1497,22 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
 #   
 # }
 
-fit.model = function(expr.norm,edges,lib.size,plot.pre.clusters=TRUE){
+fit.model = function(expr.norm,edges,lib.size,plot.pre.clusters=FALSE){
   
   # Performing down-sampling, model does not require more than 5000 cells
   if (ncol(expr.norm)>5000)
     {
     selected=sample(1:ncol(expr.norm),5000)
-    #expr.norm=as.matrix(expr.norm[,selected])
-    expr.norm=bigmemory::as.matrix(expr.norm[,selected])
+    if (class(expr.norm)=='big.matrix')
+      expr.norm=bigmemory::as.matrix(expr.norm[,selected])
+    else
+      expr.norm=as.matrix(expr.norm[,selected])
     }
   else
-    expr.norm=bigmemory::as.matrix(expr.norm)
+    if (class(expr.norm)=='big.matrix')
+      expr.norm=bigmemory::as.matrix(expr.norm)
+    else
+      expr.norm=as.matrix(expr.norm)
   
   print(dim(expr.norm))
   gc()
@@ -1692,11 +1705,11 @@ enumerate = function(expr.norm,edges,lib.size) {
 
 calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,favour='none') {
 
-  #print(dim(expr.norm))
-  gc()
-  expr.norm=bigmemory::as.matrix(expr.norm)
-  gc()
-
+  if (class(expr.norm)=='big.matrix')
+    expr.norm=bigmemory::as.matrix(expr.norm)
+  else
+    expr.norm=as.matrix(expr.norm)
+  
   #start.time <- Sys.time() 
   
   num.samples=ncol(expr.norm) 
@@ -2054,9 +2067,16 @@ generate.edges<-function(expr.data){
 transform.matrix<-function(expr.norm,case){
   
   
-  if (case==4)
+  if (class(expr.norm)=='big.matrix')
+    {
     expr.norm=bigmemory::as.matrix(expr.norm)
-  
+    memory.save.active=TRUE
+    }
+  else
+    {
+    expr.norm=as.matrix(expr.norm)
+    memory.save.active=FALSE
+    } 
   
   print('Computing transformed matrix ...')
   
@@ -2077,12 +2097,12 @@ transform.matrix<-function(expr.norm,case){
     expr.norm[k,]=shift.values(expr.norm[k,],0,1)
   #t(apply(expr.norm, 1,shift.values,A=0,B=1))
   
-  if (case==4)
+  if (memory.save.active==TRUE & case==4)
     {
     print('saving to swap transformed matrix ...')  
     expr.norm=bigmemory::as.big.matrix(expr.norm)
     }
-    
+
   
   gc()
   return(expr.norm)
@@ -2190,18 +2210,18 @@ bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TR
 
   # Calculate and store the normalized expression data ()
  # !!!!!!! ADD AUTOMATIC USE OF BATCH.CORRECTED IF PRESENT
- print('PASSAGE 3) Storing the Normalized data ....')
- sce = storeNormalized(sce)
+ print('PASSAGE 2) Storing the Normalized data ....')
+ sce = storeNormalized(sce,memory.save)
  
  # Compute the empirical model of the noise
- print('PASSAGE 4) Computing the numerical model (can take from a few minutes to 30 mins) ....')
+ print('PASSAGE 3) Computing the numerical model (can take from a few minutes to 30 mins) ....')
  sce=setModel(sce)
  
  # Remove the bacth effect !! To be automated
  #sce=remove.batch.effect(sce, batches=sce$batches, conditions=sce$conditions)
  
  # # Calculate and store the matrix with transformation = 4 (capped expression) for the signature plots
-  print('PASSAGE 5) Storing the Normalized-Transformed data (needed for some plots) ....')
+  print('PASSAGE 4) Storing the Normalized-Transformed data (needed for some plots) ....')
  sce = storeTransformed(sce)
  
  # Compute the overdispersed genes
@@ -2235,9 +2255,13 @@ bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TR
  print('PASSAGE 11) Organizing the markers ...')
  sce=setMarkers(sce)
  
- print('PASSAGE 12) Restoring full matrices of normalized counts and transformed counts...')
- sce=restoreData(sce)
- 
+ if (memory.save==TRUE)
+  { 
+  print('PASSAGE 12) Restoring full matrices of normalized counts and transformed counts...')
+  sce=restoreData(sce)
+  }
+
+ return(sce)
  
  # #viewStuff
  # ViewPseudo(sce,color.by)

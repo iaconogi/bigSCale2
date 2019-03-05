@@ -147,14 +147,14 @@ viewGeneViolin(sce,'Aqp4')
 
 ### Browsing markers
 
-To have a look to the markers found by bigscale we retrive `Mlist` from the single cell object. `Mlist` is a 2 dimensional list containing for each cluster the markers of the different levels. Let's inspect the markers of level 1 (most specific) of cluster 5 (oligodendrocytes). We will take advantage of the package `DT` for interactive visualization.
-Running the next command line we will see the markers specific to cluster 5 sorted from the highest (most significant) to the lowest (less significant) Zscore.
+To have a look to the markers found by bigscale we retrive `Mlist` from the single cell object. `Mlist` is a 2 dimensional list containing for each cluster the markers of the different levels. Let's inspect the markers of level 1 (most specific) of cluster 4 (oligodendrocytes). We will take advantage of the package `DT` for interactive visualization.
+Running the next command line we will see the markers specific to cluster 4 sorted from the highest (most significant) to the lowest (less significant) Zscore.
 
 
 
 ```{r}
 Mlist=getMarkers(sce)
-DT::datatable(Mlist[[5,1]])
+DT::datatable(Mlist[[4,1]])
 ``` 
 ![](figures/datatable.png)
 
@@ -164,26 +164,26 @@ Let us now check other genes marking oligodendrocytes (cluster 5) which are shar
 
 
 ```{r}
-DT::datatable(Mlist[[5,5]])
+DT::datatable(Mlist[[4,5]])
 ``` 
 
 ![](figures/datatable5.png)
 
 
-Here Cd9 jumps at the top of the list. This is a surface receptor expressed in oligodendrocytes but also in all the other glial cells.
+Here we can browse for Cd9, which has now a significant Z-score. Cd9 is a surface receptor expressed in oligodendrocytes but also in all the other glial cells.
 
 ### Browsing signatures
 
 Alternatevely to a cluster-based organization of the markers (as shown before, we have clusters and we have levels) there is also a more compact organization of markers into lists of co-expressed genes. This are the same lists shown with `viewSignatures(sce)`.
-To access the genes of the lists we do:
+Let us give a look to signature 1, a large list of 5432 genes expressed in neurons.
 
 ```{r}
 Signatures=getSignatures(sce)
-DT::datatable(Signatures[[4]])
+DT::datatable(Signatures[[1]])
 ```
-![](figures/signatures4.png)
+![](figures/signatures1.png)
 
-This is the signature number 4, with 1167 genes. Among the top ones we can see again Cd9. **Keep in mind that we calculated these markers and signatures with the `speed.preset='fast'` which means low quality. This plots nd tables are for demonstration purposes only.**
+ **Keep in mind that we calculated these markers and signatures with the `speed.preset='fast'` which means low quality. This plots nd tables are for demonstration purposes only.**
 
 ### Pseudotime
 

@@ -145,12 +145,20 @@ setMethod(f="preProcess",
               rm(expr.data)
               gc()
             }
-
+            else
+            {
+              object <- SingleCellExperiment(assays = list(counts = expr.data))
+              rownames(object)=as.matrix(gene.names) 
+              rm(gene.names) 
+              rm(expr.data)
+              gc()
+            }            
             # Assign the size factors 
             print('Setting the size factors ....')
+            print(class(counts(object)))
             sizeFactors(object) = Rfast::colsums(counts(object))
             
-
+            print('Generating the edges ....')
             object@int_metadata$edges=generate.edges(counts(object))
             
             return(object)
@@ -360,7 +368,7 @@ setMethod(f="setDistances",
           definition=function(object)
           {
             if ('normcounts' %in% assayNames(object))
-              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)))
+              object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object))
             else
               object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)))
             
@@ -497,7 +505,11 @@ setMethod(f="storeTsne",
           {
             gc.out=gc()
             print(gc.out)
-            tsne.data=Rtsne::Rtsne(X=bigmemory::as.matrix(object@int_metadata$D),is_distance = TRUE, ...)
+            if ('normcounts' %in% assayNames(object))
+              tsne.data=Rtsne::Rtsne(X=object@int_metadata$D,is_distance = TRUE, ...)
+            else
+              tsne.data=Rtsne::Rtsne(X=bigmemory::as.matrix(object@int_metadata$D),is_distance = TRUE, ...)
+            
             reducedDims(object)$TSNE=tsne.data$Y
             rm(tsne.data)
             gc()
@@ -555,7 +567,7 @@ setMethod(f="storeUMAP",
 #' @export
 #' 
 setGeneric(name="viewReduced",
-           def=function(object,color.by,transform.in='trim',method ='TSNE')
+           def=function(object,color.by='clusters',transform.in='trim',method ='TSNE')
            {
              standardGeneric("viewReduced")
            }
@@ -563,7 +575,7 @@ setGeneric(name="viewReduced",
 
 setMethod(f="viewReduced",
           signature="SingleCellExperiment",
-          definition=function(object,color.by,transform.in='trim',method ='TSNE')
+          definition=function(object,color.by='clusters',transform.in='trim',method ='TSNE')
           {
             #if (missing(transform.in)) transform.in='trim'
             if (color.by[1]=='clusters') # we color by cluster
@@ -640,7 +652,7 @@ setMethod(f="viewSignatures",
 #' Calculates and stores the normalized counts
 #' 
 #' @param sce object of the SingleCellExperiment class.
-#' 
+#' @param memory.save enables a series of tricks to reduce RAM memory usage. Aware of one case (in linux) in which this option causes irreversible error.
 #' @return   object of the SingleCellExperiment class with normalized counts saved inside (in the virtual memory)
 #' 
 #' @examples
@@ -648,7 +660,7 @@ setMethod(f="viewSignatures",
 #' @export
 
 setGeneric(name="storeNormalized",
-           def=function(object)
+           def=function(object, memory.save)
            {
              standardGeneric("storeNormalized")
            }
@@ -656,7 +668,7 @@ setGeneric(name="storeNormalized",
 
 setMethod(f="storeNormalized",
           signature="SingleCellExperiment",
-          definition=function(object) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
+          definition=function(object, memory.save) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
           {
             dummy=counts(object)
             counts(object)=c()
@@ -668,12 +680,17 @@ setMethod(f="storeNormalized",
               dummy[,k]=dummy[,k]/library.size[k]*avg.library.size
             gc()
             
-            print('Saving to swap the normalized expression matrix...')
-            dummy=bigmemory::as.big.matrix(dummy)
-            object@int_metadata$expr.norm.big=dummy
+            if (memory.save==TRUE)
+              {
+              print('Saving to swap the normalized expression matrix...')
+              dummy=bigmemory::as.big.matrix(dummy)
+              object@int_metadata$expr.norm.big=dummy
+              }
+              else
+              normcounts(object)=Matrix::Matrix(dummy)  
             gc.out=gc()
             print(gc.out)
-            
+
             return(object)
           }
 )
@@ -701,7 +718,10 @@ setMethod(f="storeTransformed",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            object@int_metadata$transformed.big=transform.matrix(object@int_metadata$expr.norm.big,case = 4)
+            if ('normcounts' %in% assayNames(object))
+              assay(object,'transcounts')=transform.matrix(normcounts(object),case = 4)
+            else
+              object@int_metadata$transformed.big=transform.matrix(object@int_metadata$expr.norm.big,case = 4)
             return(object)
           }
 )
@@ -904,9 +924,21 @@ setMethod(f="storePseudo",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-           
-
-            D=bigmemory::as.matrix(object@int_metadata$D)
+            
+            if (class(object@int_metadata$D)=='dgCMatrix')
+              error('Error of the stupid biSCale2 programmer!')
+            
+            print('Generating the graph ...') # CRUSHING POINT!!!!
+            
+            if (class(object@int_metadata$D)=='big.matrix')
+              G=igraph::graph_from_adjacency_matrix(adjmatrix = bigmemory::as.matrix(object@int_metadata$D),mode = 'undirected',weighted = TRUE)
+            else
+              {
+              G=igraph::graph_from_adjacency_matrix(adjmatrix = object@int_metadata$D,mode = 'undirected',weighted = TRUE)
+              object@int_metadata$D=c()
+              gc()
+              }
+            
             # gc()
             # 
             # ix=sample(ncol(D)^2,max(2000000,ncol(D)^2))
@@ -922,10 +954,7 @@ setMethod(f="storePseudo",
             # gc()
             # D=Matrix::Matrix(D)
             # gc()
-            print('Generating the graph ...') # CRUSHING POINT!!!!
-            G=igraph::graph_from_adjacency_matrix(adjmatrix = D,mode = 'undirected',weighted = TRUE)
-            rm(D)
-            gc()
+            
             
             print('Computing MST ...')
             object@int_metadata$minST=igraph::mst(G, weights = igraph::E(G)$weight,algorithm = 'prim')
