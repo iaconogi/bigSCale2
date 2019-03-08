@@ -3,6 +3,7 @@
 export(ViewPseudo)
 export(bigscale)
 export(compare.centrality)
+export(compute.distances.icell)
 export(compute.network)
 export(computeMarkers)
 export(getClusters)

@@ -243,12 +243,25 @@ The model should look similar to the upper figure: a kind of sigmoidal surface d
 
 
 Now we compute the highly variable genes and we calculate cell to cell distances.
-`min_ODscore` is the Z-score treshold for selecting the genes (default 2.33). Increase it to be more stringent (less genes) and viceversa.
+`min_ODscore` is the Z-score treshold for selecting the genes (default 2.33). Increase it to be more stringent (less genes) and viceversa. It is also possible to exclude specific intervals of expression from highly variable genes (parameter `use.exp`m check documentation of `setODgenes`). For example, exclude highly expressed genes (e.g. Ribosomal, Mitochondrial) from being selected.
+
 
 ```{r}
 sce = setODgenes(sce,min_ODscore=2.33) 
-sce=setDistances(sce)
 ``` 
+
+You can visually inspect the selected highly variable genes with: 
+
+```{r}
+viewODgenes(sce)
+``` 
+![](figures/odgenes.png)
+
+Next we compute the distances, nothing to customize here.
+
+```{r}
+sce=setDistances(sce)
+```
 
 We compute and store the TSNE data, if you want to see TSNE plots of course. Otherwise skip.
 

@@ -35,6 +35,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// distances_icells
+NumericVector distances_icells(NumericMatrix expr_driving_norm, NumericMatrix log_scores, IntegerVector ind_A, NumericVector lib_size);
+RcppExport SEXP _bigSCale_distances_icells(SEXP expr_driving_normSEXP, SEXP log_scoresSEXP, SEXP ind_ASEXP, SEXP lib_sizeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type expr_driving_norm(expr_driving_normSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type log_scores(log_scoresSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type ind_A(ind_ASEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type lib_size(lib_sizeSEXP);
+    rcpp_result_gen = Rcpp::wrap(distances_icells(expr_driving_norm, log_scores, ind_A, lib_size));
+    return rcpp_result_gen;
+END_RCPP
+}
 // rcpp_hello_world
 List rcpp_hello_world();
 RcppExport SEXP _bigSCale_rcpp_hello_world() {
@@ -49,6 +63,7 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_bigSCale_DE_Rcpp", (DL_FUNC) &_bigSCale_DE_Rcpp, 6},
     {"_bigSCale_C_compute_distances", (DL_FUNC) &_bigSCale_C_compute_distances, 4},
+    {"_bigSCale_distances_icells", (DL_FUNC) &_bigSCale_distances_icells, 4},
     {"_bigSCale_rcpp_hello_world", (DL_FUNC) &_bigSCale_rcpp_hello_world, 0},
     {NULL, NULL, 0}
 };

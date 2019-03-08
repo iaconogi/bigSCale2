@@ -1,3 +1,293 @@
+pool.icell = function (all.distances,all.neighbours,pooling.factor,q.cutoff){
+  
+pooling.factor.start=pooling.factor  
+cutoff=q.cutoff
+icells=c()
+column.reference=c(1:nrow(all.distances)) 
+starting.cells=nrow(all.distances)
+round.count=1
+
+print(sprintf('USING CUTOFF %.2f',cutoff))
+
+while (TRUE)# Main loop
+  
+  {
+  
+  print(sprintf('Sorting %g cells with %g neighbours...',nrow(all.distances),ncol(all.distances)))
+  for (k in 1:nrow(all.distances))# sorting cells for distances
+    {
+      ix=order(all.distances[k,])
+      all.distances[k,]=all.distances[k,ix]
+      all.neighbours[k,]=all.neighbours[k,ix]
+    }
+
+  print('Starting to pool...')
+  sorted=FALSE
+  while (TRUE) # straight assignment
+  {
+   
+
+    if (pooling.factor>1)
+      available=which( Rfast::rowsums(is.na(all.distances[,1:pooling.factor])) == 0)
+    else
+      available=which( is.numeric(all.distances[,1:pooling.factor]) )  
+    
+    closest.pool=available[which.min(all.distances[available,pooling.factor])]  
+    
+    # print(closest.pool)
+    # print(all.neighbours[closest.pool,1:pooling.factor])
+    # print(all.distances[closest.pool,1:pooling.factor] ) 
+    # cat(sprintf('\n'))
+    
+    if (length(closest.pool)>0)
+      
+      if (all.distances[closest.pool,pooling.factor]<cutoff )
+        {
+          dummy.pool=c(column.reference[closest.pool],all.neighbours[closest.pool,1:pooling.factor]) # dummy.pool in cell numbers
+          dummy.pool=c(dummy.pool,rep(NA,pooling.factor.start-pooling.factor))
+          icells=rbind(icells,dummy.pool)
+          all.distances[which(is.element(column.reference,dummy.pool)),]=NA
+          all.distances[which(is.element(all.neighbours,dummy.pool))]=NA
+          sorted=TRUE
+          # all.distances=all.distances[-pooled.cells,] # faster if I do it here?????
+          # all.neighbours=all.neighbours[-pooled.cells,]
+          # column.reference=column.reference[-pooled.cells]
+        }
+      else
+         break # if closest distances have some NAs or they exceed limit
+    else
+      break # if there is no closets pool (all NAs)
+
+  }
+  
+  unique.icells=setdiff(icells,NA)
+  
+  print(sprintf('After pooling reached %g iCells containing %g original cells',nrow(icells),length(unique.icells)))
+  
+  if (length(unique.icells)>(starting.cells-pooling.factor))
+    return(icells)
+  
+  if (sorted=='FALSE')# Could not pool any cell
+  {
+    pooling.factor=pooling.factor-1
+    if(pooling.factor==0)
+      break
+    else
+      print(sprintf('Decreasing pooling factor to %g',pooling.factor))
+  }
+    
+  # removing pooled cells
+  
+  pooled.cells=which(is.element(column.reference,unique.icells))
+  if (length(pooled.cells)>0)
+    {
+    print(sprintf('Removing %g used cells...',length(pooled.cells)))
+    all.distances=all.distances[-pooled.cells,]
+    all.neighbours=all.neighbours[-pooled.cells,]
+    column.reference=column.reference[-pooled.cells]
+    gc()
+    }
+
+  
+  round.count=round.count+1
+
+  }
+
+return(icells)
+
+}
+
+
+#' Compute iCell distances
+#'
+#' @export
+
+compute.distances.icell = function (expr.data){
+  
+expr.data=as.matrix(expr.data)
+ 
+#*************************************************************************************************************
+# Part 1) Initial processing of the dataset  *****************************************************************
+print('Pre-processing) Removing null rows ')
+  exp.genes=which(Rfast::rowsums(expr.data)>0)
+  if ((nrow(expr.data)-length(exp.genes))>0)
+    print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
+  expr.data=expr.data[exp.genes,]
+  gc()
+  
+print('PASSAGE 1) Setting the size factors ....')
+  lib.size = Rfast::colsums(expr.data)
+  
+print('PASSAGE 2) Setting the bins for the expression data ....')
+  edges=generate.edges(expr.data)
+  
+print('PASSAGE 3) Storing in the single cell object the Normalized data ....')
+  avg.library.size=mean(lib.size)
+  for (k in 1:ncol(expr.data)) expr.data[,k]=expr.data[,k]/lib.size[k]*avg.library.size
+  expr.data.norm=expr.data
+  rm(expr.data)
+  expr.data.norm=Matrix::Matrix(expr.data.norm)
+  gc()
+  
+print('PASSAGE 4) Computing the numerical model (can take from a few minutes to 30 mins) ....')
+  N_pct=fit.model(expr.data.norm,edges,lib.size) # add more rounds for a more acccurate model!!!!!
+  gc()
+  N_pct.out<<-N_pct
+  
+  
+print('PASSAGE 5) Computing OD genes ....')
+  ODgenes=calculate.ODgenes(expr.data.norm)
+  dummy=as.matrix(ODgenes[[1]])
+  driving.genes=which(dummy[,1]==1)
+  
+  driving.genes.out<<-driving.genes
+# ......................................................................................
+# ......................................................................................
+
+
+# normalize expression data for library size without scaling to the overall average depth
+expr.driving.norm=as.matrix(expr.data.norm[driving.genes,]/mean(lib.size))
+rm(expr.data.norm)
+gc()
+
+
+
+
+# .....................................................................................
+# PART fixing the model ...............................................................
+tot.el=nrow(N_pct)
+
+# Configure deregulated treshold 
+p.cutoff=0.01
+  
+# Making N_pct symmetric
+  for (k in 1:tot.el)
+    for (h in 1:tot.el)
+      if (k>h) N_pct[k,h]=N_pct[h,k]
+  
+# 2) Finding deregulated
+dereg=N_pct<p.cutoff
+  
+# 3) Calculating log_scores and removing infinite values
+log.scores=-log10(N_pct)
+for (k in 1:tot.el)
+{
+  max.val=max(log.scores[k,is.finite(log.scores[k,])])
+  infinite.el=which(is.infinite(log.scores[k,]))
+  log.scores[k,infinite.el]=max.val
+  log.scores[infinite.el,k]=max.val
+}
+  
+# zeroing the diagonal and setting pval<dereg zone
+diag(log.scores)=0
+log.scores=abs(log.scores*dereg)
+# ......................................................................................
+# .....................................................................................
+  
+
+
+# .....................................................................................
+# Allocating vector  .................................................................
+indA.size=1000000
+  
+critical.value=max(lib.size)*max(expr.driving.norm)
+if (critical.value>indA.size/10)
+  {
+  indA.size=indA.size*50
+    warning(sprintf('Critical value very high (%g): Increased memory usage!!',critical.value))
+  if (critical.value>indA.size/10)
+    stop(sprintf('Critical value way too high (%g): Stopping the analysis!!',critical.value))
+  }
+  
+#print('Proceding to allocate large vector')
+vector=c(0:indA.size)/10 # increase if code blocks, It can assign a gene exprssion level up to 10000000
+ind.A=as.integer(cut(vector,edges,include.lowest = TRUE))
+rm(vector)
+ind.A=ind.A-1
+# .....................................................................................
+# ......................................................................................
+
+
+#  ......................................................................................
+# CORE PART
+#  ......................................................................................
+
+downsampling=4
+iCells.tot=c()
+cell.reference=c(1:ncol(expr.driving.norm))
+q.cutoff=0.1
+round=1
+
+while (TRUE) 
+  
+  {
+  print(sprintf('Starting from unpooled cells....'))
+  print('')
+  
+  tot.cells=ncol(expr.driving.norm)
+  sample.size=min(500,(tot.cells-1))
+  all.distances=matrix(0,tot.cells,sample.size)
+  all.neighbours=matrix(0,tot.cells,sample.size)
+  
+  random.neighbours=sample(tot.cells,sample.size)
+  
+  print('Computing distances ...')
+  for ( k in 1:tot.cells)
+    {
+    random.neighbours=setdiff(sample(tot.cells,(sample.size+1)),k)
+    random.neighbours=random.neighbours[1:sample.size]
+    all.distances[k,]=distances_icells(expr.driving.norm[,c(k,random.neighbours)],log.scores,ind.A,lib.size[c(k,random.neighbours)])
+    all.neighbours[k,]=random.neighbours
+    }
+  
+  # Initializing quantile  ...............................................
+  if (round==1) 
+    {
+    q.cutoff.narrow=quantile(all.distances,0.1)
+    q.cutoff.large=quantile(all.distances,0.25)
+    q.cutoff=q.cutoff.narrow
+    all.distances.out<<-all.distances
+    all.neighbours.out<<-all.neighbours
+    }
+  
+  # Computing iCells ...............................................
+  icells=pool.icell(all.distances,all.neighbours,downsampling,q.cutoff)
+  if (length(icells)>0)
+      {
+      for (k in 1:nrow(icells)) # remapping icells to reference safe numbers
+        icells[k,]=cell.reference[icells[k,]]
+      iCells.tot=rbind(iCells.tot,icells)
+      pooling.done=TRUE
+      }
+  else
+      pooling.done=FALSE
+  
+  # Unpooled cells .................................................
+  unpooled.cells=setdiff(1:tot.cells,iCells.tot)
+  print(sprintf('%g cells are still unpooled....',length(unpooled.cells)))
+  
+  
+  if (length(unpooled.cells)<=downsampling) # we are done, pooed enough
+    break
+  if (pooling.done==FALSE) # could not pool more even after looking for more neighbours
+    if (q.cutoff==q.cutoff.large) # again we are done
+      break
+    else
+      q.cutoff=q.cutoff.large
+  
+  expr.driving.norm=expr.driving.norm[,unpooled.cells]
+  cell.reference=cell.reference[unpooled.cells]
+  gc()
+  round=round+1
+  }
+
+
+
+return(iCells.tot)
+}
+
+
+
 bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size,fragment=FALSE) {
   
 num.samples=ncol(expr.data.norm)
@@ -1364,8 +1654,6 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   
   if (!hasArg(genes.discarded)) genes.discarded =c()
   
-  num.genes=nrow(expr.norm)
-  num.samples=ncol(expr.norm)
   tot.el=nrow(N_pct)
   #if issparse(total_data)
 
@@ -1452,6 +1740,11 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   
 
 }
+
+
+
+
+
 
 
 
@@ -1718,7 +2011,7 @@ enumerate = function(expr.norm,edges,lib.size) {
 # }
 
 
-calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,favour='none') {
+calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0,1)) {
 
   if (class(expr.norm)=='big.matrix')
     expr.norm=bigmemory::as.matrix(expr.norm)
@@ -1800,10 +2093,9 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,favour='non
   
   ODscore=B_corr1/yy
   od_genes=which(ODscore>min_ODscore)
-  
-  if (favour=='high') od_genes=intersect(od_genes,which(La>quantile(La,0.75)))
 
-  if (favour=='low')  od_genes=intersect(od_genes,which(La<quantile(La,0.25)))
+  
+  od_genes=intersect(od_genes,which( La>=quantile(La,use.exp[1]) &  La<=quantile(La,use.exp[2]) ))
       
   ODgenes=rep(0,length(La))
   ODgenes[od_genes]=1

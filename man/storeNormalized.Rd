@@ -4,7 +4,7 @@
 \alias{storeNormalized}
 \title{storeNormalized}
 \usage{
-storeNormalized(object, memory.save)
+storeNormalized(object, memory.save = TRUE)
 }
 \arguments{
 \item{memory.save}{enables a series of tricks to reduce RAM memory usage. Aware of one case (in linux) in which this option causes irreversible error.}

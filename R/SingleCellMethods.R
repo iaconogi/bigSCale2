@@ -233,7 +233,10 @@ setMethod(f="viewModel",
 #' Computes the numerical model at the core of all bigSCale2 analysis.
 #' 
 #' @param sce object of the SingleCellExperiment class.
-#' @param min_ODscore the treshold (Z-score) used to select highly variable genes. By default \core{min_ODscore=2.33}. Increasing(decreasing) it results in less(more) highly variable genes.
+#' @param min_ODscore the treshold (Z-score) used to select highly variable genes. Increasing(decreasing) it results in less(more) highly variable genes.
+#' @param use.exp A vactor of two elements \code{c(a,b)}: lower and upper quantile of expression for restricting the selection of highly variable genes. 
+#' Only the genes whose expression quantile is higher than \code{c(a)} and lower than \code{c(b)} will be used for highyl variable genes.
+#' For example, if your clustering is driven by lots of highly expressed genes (Ribosomal, Mitochondrial, ..) you can set something like \code{use.exp=c(0,0.9)} to discard them.
 #' 
 #' @return  object of the SingleCellExperiment class, with the highly variable genes stored inside.
 #' 
@@ -244,7 +247,7 @@ setMethod(f="viewModel",
 #' @export
 
 setGeneric(name="setODgenes",
-           def=function(object,...)
+           def=function(object,min_ODscore=2.33,use.exp=c(0,1))
            {
              standardGeneric("setODgenes")
            }
@@ -252,16 +255,16 @@ setGeneric(name="setODgenes",
 
 setMethod(f="setODgenes",
           signature="SingleCellExperiment",
-          definition=function(object,...)
+          definition=function(object,min_ODscore=2.33,use.exp=c(0,1))
           {
             
             #if ('counts.batch.removed' %in% assayNames(object))
             #    {
             
             if ('normcounts' %in% assayNames(object))
-              out=calculate.ODgenes(expr.norm = normcounts(object),...)
+              out=calculate.ODgenes(expr.norm = normcounts(object),min_ODscore=min_ODscore,use.exp=use.exp)
             else
-              out=calculate.ODgenes(expr.norm = object@int_metadata$expr.norm.big,...)
+              out=calculate.ODgenes(expr.norm = object@int_metadata$expr.norm.big,min_ODscore=min_ODscore,use.exp=use.exp)
               
             # print('Calculating ODgenes using normalized expression counts')
             # tot.cells=ncol(normcounts(object))
@@ -377,6 +380,9 @@ setMethod(f="setDistances",
             return(object)
           }
 )
+
+
+
 
 
 #' getDistances
@@ -606,7 +612,7 @@ setMethod(f="viewReduced",
 )
 
 
-#' viewSignatures
+#' atures
 #'
 #' Plots and heatmap with dendrogram, clusters, pseudotime, transcriptome complexity, custom user colData and expression values for markers and signtures.
 #'
@@ -660,7 +666,7 @@ setMethod(f="viewSignatures",
 #' @export
 
 setGeneric(name="storeNormalized",
-           def=function(object, memory.save)
+           def=function(object, memory.save=TRUE)
            {
              standardGeneric("storeNormalized")
            }
@@ -668,7 +674,7 @@ setGeneric(name="storeNormalized",
 
 setMethod(f="storeNormalized",
           signature="SingleCellExperiment",
-          definition=function(object, memory.save) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
+          definition=function(object, memory.save=TRUE) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
           {
             dummy=counts(object)
             counts(object)=c()

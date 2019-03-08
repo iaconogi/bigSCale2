@@ -9,6 +9,10 @@ C_compute_distances <- function(expr_driving_norm, log_scores, ind_A, lib_size) 
     .Call(`_bigSCale_C_compute_distances`, expr_driving_norm, log_scores, ind_A, lib_size)
 }
 
+distances_icells <- function(expr_driving_norm, log_scores, ind_A, lib_size) {
+    .Call(`_bigSCale_distances_icells`, expr_driving_norm, log_scores, ind_A, lib_size)
+}
+
 rcpp_hello_world <- function() {
     .Call(`_bigSCale_rcpp_hello_world`)
 }

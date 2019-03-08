@@ -2,7 +2,7 @@
 % Please edit documentation in R/SingleCellMethods.R
 \name{viewSignatures}
 \alias{viewSignatures}
-\title{viewSignatures}
+\title{atures}
 \usage{
 viewSignatures(object, selected.cluster)
 }
