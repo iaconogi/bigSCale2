@@ -468,7 +468,7 @@ The genome version is GRCh38.
 Now we convert to .mtx format and, at the same time, we filter the cells. Here, I select the cells with at least 400 detected genes.
 
 ```{r}
-out=bigscale.convert.h5(input.file = "ica_cord_blood_h5.h5",output.file, "ica_cord_blood.mtx.tar.gz",counts.field = "GRCh38",filter.cells = 400)
+out=bigscale.convert.h5(input.file = "ica_cord_blood_h5.h5",output.file="ica_cord_blood.mtx.tar.gz",counts.field = "GRCh38",filter.cells = 400)
 ```
 
 The output of the funtion contains the indices of the selected cells. Running `length(out$filtered.cells)` shows that we remained with 278367 cells.
