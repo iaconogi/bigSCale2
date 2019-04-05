@@ -413,7 +413,10 @@ Also, if you believe that your network is too dense (too many edges) or not dens
 
 # bigSCale 2 iCells
 
-iCells are the most peculiar and interesting feature of bigSCale2. With iCells, you can reduce large datasets of any size into smaller datasets of significantly higher quality. These datasets can be in turn analyzed with any tool, also those which do not natively support large cell numbers. We now show to examples using the two different output format you can typically encounter: mtx and hdf5. If you have an expression matrix which is loaded in R workspace first write it to .mex file using the very simple `Matrix::writeMM()` and then proceed as I show next.
+iCells are the most peculiar and interesting feature of bigSCale2. With iCells, you can reduce large datasets of any size into smaller datasets of significantly higher quality. These datasets can be in turn analyzed with any tool, also those which do not natively support large cell numbers.<br />
+Once you find a cluster in the iCell dataset, you can extract the relative cells directly in form of expression counts using `extract.cells()`.<br />
+We now show to examples using the two different output format you can typically encounter: mtx and hdf5.<br />
+If you have an expression matrix which is loaded in R workspace first write it to .mex file using the very simple `Matrix::writeMM()` and then proceed as I show next. 
 
 
 # Example 1: 2 millions cells in .mtx format
