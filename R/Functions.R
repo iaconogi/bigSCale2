@@ -3318,7 +3318,7 @@ transform.matrix<-function(expr.norm,case){
   if (memory.save.active==TRUE & case==4)
     {
     print('saving to swap transformed matrix ...')  
-    expr.norm=bigmemory::as.big.matrix(expr.norm,backingfile = 'transcounts.bin',backingpath = getwd())
+    expr.norm=bigmemory::as.big.matrix(expr.norm)#,backingfile = 'transcounts.bin',backingpath = getwd())
     }
 
   
