@@ -1,29 +1,564 @@
-pool.icell = function (all.distances,all.neighbours,pooling.factor,q.cutoff){
+
+#' deconvolute
+#'
+#' @export
+#' 
+#' 
+deconvolute = function(icells.end,icells.start){
+  
+  
+  icells=matrix(NA,nrow(icells.end),ncol(icells.end)*ncol(icells.start))
+  
+  for (k in 1:nrow(icells.end))
+  {
+    dummy=icells.end[k,]
+    dummy=dummy[!is.na(dummy)]
+    icells.temp=c()
+    for (j in 1:length(dummy))
+      icells.temp=c(icells.temp,icells.start[dummy[j],])
+    icells.temp=icells.temp[!is.na(icells.temp)]
+    icells[k,1:(length(icells.temp))]=icells.temp
+  }
+
+  return(icells)
+  
+}
+
+#' extract.cells
+#'
+#' Works with the .mex files. It subsets to the specified set of cells and write them into the output .mex file.
+#' 
+#' @param input.mex File name of the input dataset
+#' @param input.mex File name of the output dataset
+#' @param cells Indices of the cells you want to extract
+#' @param chunks A techincal parameter, you should not really touch this. It represent how large is the chunk of cells read when sequentially pharsing the input.mex
+#' 
+#' @return  Writes to disk the subsetted dataset. Please note that if \code{cells} will be automatially sorted. For example, is \code{cells=c(10,1)}, meaning that you want to extract cells 10 and 1, the oupput matrix will contain, in order, cells 1 and 10.
+#'
+#'
+#' @examples
+#' check the online tutorial at Github
+#'
+#' @export
+
+extract.cells = function(input.mex,output.mex,cells,chuncks=50000){
+
+  
+  # Reading header for sample info
+  out=bigscale.readMM(file=input.mex,size.only=TRUE)
+  tot.cells=out[1]
+  tot.genes=out[2]
+  tot.numbers=out[3]
+  avg.genes.cell=tot.numbers/tot.cells
+  chuncks.nz=chuncks*avg.genes.cell
+  
+  # Counting nz
+  pointer=0
+  tot.cells.read=0
+  nz=0
+  while (TRUE)
+    {
+    
+    out=bigscale.readMM(file=file.dir,max.vals = chuncks.nz,skip.vals = pointer)
+    pointer=out$pointer
+    
+    if (length(out$dgTMatrix)==0) break
+
+    cell.references=c(1:ncol(out$dgTMatrix))+tot.cells.read
+    tot.cells.read=tot.cells.read+ncol(out$dgTMatrix)
+    selected.cells=which(is.element(cell.references,cells))
+    print(sprintf('Read %g cells, selected %g cells',tot.cells.read,length(selected.cells)))
+    
+    if (length(selected.cells)>0)
+         nz=nz+sum(out$dgTMatrix[,selected.cells]>0) 
+
+    }
+      
+      
+  # Writing the beginning of the output file
+  temp.file=gzfile(output.mex)
+  open(temp.file,"w")
+  writeLines("%%MatrixMarket matrix coordinate integer general", temp.file)
+  write.table(c(tot.genes,length(cells),nz),temp.file,row.names = FALSE,col.names = FALSE)    
+  
+  
+  
+  # Reading and writing
+  pointer=0
+  tot.cells.read=0
+  tot.cells.selected=0
+  while (TRUE)
+    {
+    out=bigscale.readMM(file=file.dir,max.vals = chuncks.nz,skip.vals = pointer)
+    pointer=out$pointer
+    if (length(out$dgTMatrix)==0) break    
+ 
+    cell.references=c(1:ncol(out$dgTMatrix))+tot.cells.read
+    tot.cells.read=tot.cells.read+ncol(out$dgTMatrix)
+    selected.cells=which(is.element(cell.references,cells))
+    
+    print(sprintf('Read %g cells, of which selected %g',tot.cells.read,length(selected.cells)))
+    
+    if (length(selected.cells)>0)
+      {
+      temp.mat=Matrix::summary(out$dgTMatrix[,selected.cells])
+      temp.mat[,2]=temp.mat[,2]+as.integer(tot.cells.selected)
+      tot.cells.selected=tot.cells.selected+length(selected.cells)
+      write.table(temp.mat,temp.file,row.names = FALSE,col.names = FALSE)
+      }
+    
+  }
+  
+  close(temp.file)
+}
+
+
+merge.chunks = function(verbose){
+  
+  file.names=list.files(pattern = "Temp")
+  if (verbose==TRUE) print(sprintf('Detected %g chunks to merge',length(file.names)))
+  
+  nc=0
+  nz=0
+  for (k in 1:length(file.names))
+  {
+    numbers=bigscale.readMM(file.names[k],size.only = TRUE)
+    nc=nc+numbers[1]
+    nz=nz+numbers[3]
+    nr=numbers[2] # this actually enough to be done only once
+  }
+  
+  
+  temp.file=gzfile("iCells.mtx.gz")
+  open(temp.file,"w")
+  
+  writeLines("%%MatrixMarket matrix coordinate integer general", temp.file)
+  write.table(c(nr,nc,nz),temp.file,row.names = FALSE,col.names = FALSE)
+  
+  current.cell.num=0
+  for (k in 1:length(file.names))
+  {
+    if (verbose==TRUE) print(sprintf('Appending chunk %g/%g',k,length(file.names)))
+    temp.mat=Matrix::readMM(file.names[k])
+    temp.mat=Matrix::summary(temp.mat)
+    
+    if (verbose==TRUE) print(sprintf("Input cells from %g to %g",min(temp.mat[,2]),max(temp.mat[,2])))
+    current.cells=max(temp.mat[,2])
+    temp.mat[,2]=temp.mat[,2]+as.integer(current.cell.num)
+    current.cell.num=current.cell.num+current.cells
+    if (verbose==TRUE) print(sprintf("Writing cells from %g to %g",min(temp.mat[,2]),max(temp.mat[,2])))
+    
+    write.table(temp.mat,temp.file,row.names = FALSE,col.names = FALSE)
+  }
+  
+  
+  
+  file.remove(file.names)
+  close(temp.file)
+  
+}
+
+
+#' bigscale.writeMM
+#'
+#' @export
+#' 
+bigscale.writeMM <- function(data,file.name)
+{
+  nc=ncol(data)
+  nr=nrow(data)
+  data=Matrix::summary(data)
+  nz=nrow(data)
+ 
+  temp.file=gzfile(file.name)
+  open(temp.file,"w")
+  
+  writeLines("%%MatrixMarket matrix coordinate integer general", temp.file)
+  write.table(c(nr,nc,nz),temp.file,row.names = FALSE,col.names = FALSE)
+  # data[,1]=as.integer(data[,1])
+  # data[,2]=as.integer(data[,2])
+  #data[,3]=as.integer(data[,3])
+  write.table(data,temp.file,row.names = FALSE,col.names = FALSE)
+  close(temp.file)
+}
+
+
+#' bigscale.convert.h5
+#'
+#' Converts and .HDF5 format to a .MEX format
+#' @export
+#' 
+bigscale.convert.h5 <- function(input.file,output.file,counts.field,filter.cells=0)
+{
+library(Matrix)
+library(rhdf5)
+  
+dims = h5read(input.file, paste(counts.field, "/shape",sep=""))
+chunks=50000
+current.cell=1
+
+indices = h5read(input.file,paste(counts.field, "/indices",sep=""))
+indptr = h5read(input.file,paste(counts.field, "/indptr",sep=""))
+data = h5read(input.file,paste(counts.field, "/data",sep=""))
+det.genes=diff(indptr)
+
+
+
+# Writing the beginning of the output file
+temp.file=gzfile(output.file)
+open(temp.file,"w")
+writeLines("%%MatrixMarket matrix coordinate integer general", temp.file)
+write.table(c(dims[1],sum(det.genes>=filter.cells),length(indices)),temp.file,row.names = FALSE,col.names = FALSE)  
+print(sprintf("Writing nc=%g",sum(det.genes>=filter.cells)))
+pb <- progress::progress_bar$new(format = "Converting cells [:bar] :current/:total (:percent) eta: :eta", dims[2])
+pb$tick(0)
+
+current.cell=1
+current.cell.written=1
+
+while (TRUE)
+  {
+  
+  if ((current.cell+chunks)>length(indptr))
+    chunks=length(indptr)-current.cell  
+  ix=c( (indptr[current.cell]+1) : indptr[current.cell+chunks] )
+  
+  i_local=as.integer(indices[ix])
+  x_local=as.numeric(data[ix])
+  
+  j_local=(rep(0,length(i_local)))
+  indptr_local=indptr[current.cell:(current.cell+chunks)]
+  indptr_local=indptr_local-indptr_local[1]
+  for (k in 1:chunks)
+    j_local[(indptr_local[k]+1):indptr_local[k+1]]=k
+  j_local=as.integer(j_local)
+  
+  det.genes.local=det.genes[current.cell:(current.cell+chunks-1)]
+  cells.okay=which(det.genes.local>=filter.cells)
+  
+  temp.matrix=new("dgTMatrix", Dim = as.integer(c(dims[1], chunks)), i = i_local,j = j_local - 1L, x = x_local)
+  temp.matrix=temp.matrix[,cells.okay]
+  temp.matrix=Matrix::summary(temp.matrix)
+  
+  
+  print(sprintf('Kept %g/%g cells with at least %g espressed genes,current cell written=%g',length(cells.okay),chunks,filter.cells,current.cell.written))
+  temp.matrix[,2]=temp.matrix[,2]+as.integer(current.cell.written-1)
+
+  current.cell=current.cell+chunks
+  current.cell.written=current.cell.written+length(cells.okay)
+  write.table(temp.matrix,temp.file,row.names = FALSE,col.names = FALSE)
+  pb$tick(chunks)
+  
+  if (current.cell==length(indptr)) break
+  }
+close(temp.file)
+h5closeAll()
+return(list(filtered.cells=which(det.genes>=filter.cells),det.genes=det.genes))
+}
+
+
+  
+  # for ( k in cells.to.read)
+  #   {
+  #   print(k)
+  #   ix=c((indptr[k]+1):(indptr[k+1]))
+  #   temp.matrix[indices[ix],k]=data[ix]
+  #   }
+
+
+#' bigscale.readMM
+#'
+#' @export
+#' 
+#' 
+bigscale.readMM <- function(file,max.vals,skip.vals=0,size.only=FALSE,current.condition=NA)
+{
+  library(Matrix)
+  
+  if (is.character(file))
+    file <- if(file == "") stdin() else file(file)
+  if (!inherits(file, "connection"))
+    stop("'file' must be a character string or connection")
+  if (!isOpen(file)) {
+    open(file)
+    on.exit(close(file))
+  }
+  scan1 <- function(what, ...)
+    scan(file, nmax = 1, what = what, quiet = TRUE, ...)
+  
+  if (scan1(character()) != "%%MatrixMarket")# hdr
+    stop("file is not a MatrixMarket file")
+  
+  if (!(typ <- tolower(scan1(character()))) %in% "matrix")
+    stop(gettextf("type '%s' not recognized", typ), domain = NA)
+  
+  if (!(repr <- tolower(scan1(character()))) %in% c("coordinate", "array"))
+    stop(gettextf("representation '%s' not recognized", repr), domain = NA)
+  
+  elt <- tolower(scan1(character()))
+  if (!elt %in% c("real", "complex", "integer", "pattern"))
+    stop(gettextf("element type '%s' not recognized", elt), domain = NA)
+  
+  sym <- tolower(scan1(character()))
+  if (!sym %in% c("general", "symmetric", "skew-symmetric", "hermitian"))
+    stop(gettextf("symmetry form '%s' not recognized", sym), domain = NA)
+  
+  nr <- scan1(integer(), comment.char = "%")
+  nc <- scan1(integer())
+  nz <- scan1(integer())
+  
+  if (size.only) return(c(nc,nr,nz))
+  
+  checkIJ <- function(els) 
+  {
+    if(any(els$i < 1 | els$i > nr))
+      stop("readMM(): row	 values 'i' are not in 1:nr", call.=FALSE)
+    if (any(els$j < 1 | els$j > nc))
+      stop(sprintf("readMM(): column values 'j' are in %g:%g and not in 1:nc (1:%g)",min(els$j),max(els$j),nc), call.=FALSE)
+  }
+  
+  
+  
+  if (repr == "coordinate") {
+    switch(elt,
+           "real" = ,
+           "integer" = {
+             ## TODO: the "integer" element type should be returned as
+             ##       an object of an "iMatrix" subclass--once there are
+             #print(sprintf('max.vals = %g, nz=%g',max.vals,nz))
+              if (max.vals>(nz-skip.vals))
+              {
+              #print('Reading all file at once') 
+              els <- scan(file, skip = skip.vals, quiet = TRUE,what= list(i= integer(), j= integer(), x= numeric()))
+              }
+              else
+              els <- scan(file, nmax = min(max.vals,nz-skip.vals), skip = skip.vals, quiet = TRUE,what= list(i= integer(), j= integer(), x= numeric()))
+              
+              #checkIJ(els) 
+              
+             if (length(els$i)==0) return(c())
+             
+            
+            if (length(intersect(els$j,current.condition))>0) # we have read cell of the current condition
+              pointer=max(which(els$j==current.condition))
+              else
+                 if (length(unique(els$j))==1 | max.vals>(nz-skip.vals)) 
+                   pointer=length(els$i) # keeping all read values
+                 else   
+                   pointer=max(which(els$j==(max(els$j)-1))) # keeping all values up to j-1 cell
+             
+             els$i=els$i[1:pointer]
+             els$j=els$j[1:pointer]
+             els$j=as.integer(els$j-min(els$j)+1)
+             els$x=els$x[1:pointer]
+             nc=max(els$j)
+             #print(nc)
+             #pointer=read.to/3
+             
+             checkIJ(els)
+             
+             switch(sym,
+                    "general" = {
+                      return(list(dgTMatrix=new("dgTMatrix", Dim = c(nr, nc), i = els$i - 1L,j = els$j - 1L, x = els$x),pointer=(pointer+skip.vals)))
+                    },
+                    "symmetric" = {
+                      stop("general symmetry form 'symmetric' not yet implemented for reading")
+                      #new("dsTMatrix", uplo = "L", Dim = c(nr, nc),
+                      #    i = els$i - 1L, j = els$j - 1L, x = els$x)
+                    },
+                    "skew-symmetric" = {
+                      stop("general symmetry form 'skew-symmetric' not yet implemented for reading")
+                      ## FIXME: use dgT... but must expand the (i,j,x) slots!
+                      new("dgTMatrix", uplo = "L", Dim = c(nr, nc),
+                          i = els$i - 1L, j = els$j - 1L, x = els$x)
+                      
+                    },
+                    "hermitian" = {
+                      stop("general symmetry form 'hermitian' not yet implemented for reading")
+                    },
+                    ## otherwise (not possible; just defensive programming):
+                    stop(gettextf("symmetry form '%s' is not yet implemented",
+                                  sym), domain = NA)
+             )
+           },
+           "pattern" = {
+             els <- scan(file, nmax = nz, quiet = TRUE,
+                         what = list(i = integer(), j = integer()))
+             checkIJ(els)
+             switch(sym,
+                    "general" = {
+                      stop("pattern form 'symmetric' not yet implemented for reading")
+                      #new("ngTMatrix", Dim = c(nr, nc),
+                      #    i = els$i - 1L, j = els$j - 1L)
+                    },
+                    "symmetric" = {
+                      stop("pattern form 'symmetric' not yet implemented for reading")
+                      #new("nsTMatrix", uplo = "L", Dim = c(nr, nc),
+                      #    i = els$i - 1L, j = els$j - 1L)
+                    },
+                    "skew-symmetric" = {
+                      stop("pattern form 'skew-symmetric' not yet implemented for reading")
+                      ## FIXME: use dgT... but must expand the (i,j,x) slots!
+                      new("ngTMatrix", uplo = "L", Dim = c(nr, nc),
+                          i = els$i - 1L, j = els$j - 1L)
+                      
+                    },
+                    "hermitian" = {
+                      stop("pattern form 'hermitian' not yet implemented for reading")
+                    },
+                    ## otherwise (not possible; just defensive programming):
+                    stop(gettextf("symmetry form '%s' is not yet implemented",
+                                  sym), domain = NA)
+             )
+           },
+           "complex" = {
+             stop("element type 'complex' not yet implemented")
+           },
+           ## otherwise (not possible currently):
+           stop(gettextf("'%s()' is not yet implemented for element type '%s'",
+                         "readMM", elt), domain = NA))
+  }
+  else
+    stop(gettextf("'%s()' is not yet implemented for  representation '%s'",
+                  "readMM", repr), domain = NA)
+}
+
+
+
+
+
+pool.icell.fast = function (all.distances,all.neighbours,pooling.factor,cutoff,verbose){
+
+  icells=c()
+
+  #all.distances.out<<-all.distances
+  #all.neighbours.out<<-all.neighbours
+  
+  
+  #initializing min neighbours
+  if (pooling.factor>=4) min.neighbours=2
+  else min.neighbours=1
+  
+  if (verbose==TRUE)
+    {
+    print(sprintf('USING CUTOFF %.2f',cutoff))
+    print(sprintf('Actual 0.1 quantile of local distances %.2f',quantile(all.distances,0.1)))
+    print(sprintf('Sorting %g cells with %g neighbours...',nrow(all.distances),ncol(all.distances)))
+    }
+  
+  for (k in 1:nrow(all.distances))# sorting cells for distances
+      {
+      ix=order(all.distances[k,])
+      all.distances[k,]=all.distances[k,ix]
+      all.neighbours[k,]=all.neighbours[k,ix]
+      }
+  
+    
+  #cleaning step to reduce the columns and fasten the code!!!!
+  good.neighbours=Rfast::rowsums(all.distances<=cutoff)
+  best.cell=max(good.neighbours)
+    if (best.cell>1)
+        {
+        if (verbose==TRUE) print(sprintf('Best cell has %g good neighbours, restricting the data',best.cell))
+        all.distances=all.distances[,1:best.cell]
+        all.neighbours=all.neighbours[,1:best.cell]
+        }
+    
+    
+  if (verbose==TRUE) print('Starting to pool...')
+
+  
+  
+  #ordering by average distance
+  avg.dist=Rfast::rowmeans(all.distances)
+  ix=order(avg.dist,decreasing = FALSE)
+  all.distances=all.distances[ix,]
+  all.neighbours=all.neighbours[ix,]
+  good.neighbours=good.neighbours[ix]
+  column.reference=ix
+  rm(ix)
+  gc()
+  
+  #marking useless distances
+  ix=which(all.distances>cutoff)
+  all.distances[ix]=NA
+  all.neighbours[ix]=NA
+  
+  cell.available=rep(1,nrow(all.distances))
+  used.cells=rep(NA,nrow(all.distances))
+ 
+  
+  counts.used=0
+  
+  for (k in 1:nrow(all.distances)) #main cycle
+    {
+    available=setdiff(all.neighbours[k,1:good.neighbours[k]],used.cells) #neighbours already sorted from clostest to fartest
+    if (cell.available[column.reference[k]]>0)
+      if (length(setdiff(available,NA))>=min.neighbours)
+        {
+        selected=available[1:min(pooling.factor,length(available))]
+        dummy.pool=c(column.reference[k],selected,rep(NA,pooling.factor-length(selected)))
+        used.cells[(counts.used+1):(counts.used+length(dummy.pool))]=dummy.pool
+        counts.used=counts.used+length(dummy.pool)
+        icells=rbind(icells,dummy.pool)
+        cell.available[dummy.pool]=0
+        }
+    
+    }
+  return(icells)
+}
+
+
+
+
+
+
+
+pool.icell = function (all.distances,all.neighbours,pooling.factor,cutoff,verbose){
   
 pooling.factor.start=pooling.factor  
-cutoff=q.cutoff
 icells=c()
+
 column.reference=c(1:nrow(all.distances)) 
 starting.cells=nrow(all.distances)
 round.count=1
 
-print(sprintf('USING CUTOFF %.2f',cutoff))
+if (verbose==TRUE)  print(sprintf('USING CUTOFF %.2f',cutoff))
+
+if (verbose==TRUE) print(sprintf('Actual 0.1 quantile of local distances %.2f',quantile(all.distances,0.1)))
 
 while (TRUE)# Main loop
   
   {
   
-  print(sprintf('Sorting %g cells with %g neighbours...',nrow(all.distances),ncol(all.distances)))
+  if (verbose==TRUE) print(sprintf('Sorting %g cells with %g neighbours...',nrow(all.distances),ncol(all.distances)))
+  
+
   for (k in 1:nrow(all.distances))# sorting cells for distances
     {
       ix=order(all.distances[k,])
       all.distances[k,]=all.distances[k,ix]
       all.neighbours[k,]=all.neighbours[k,ix]
     }
-
-  print('Starting to pool...')
+  
+  if (round.count==1)
+    {
+    #cleaning step to reduce the columns and fasten the code!!!!
+    good.neighbours=Rfast::rowsums(all.distances<=cutoff)
+    best.cell=max(good.neighbours)
+    if (best.cell>1)
+      {
+      if (verbose==TRUE) print(sprintf('Best cell has %g good neighbours, restricting the data',best.cell))
+      all.distances=all.distances[,1:best.cell]
+      all.neighbours=all.neighbours[,1:best.cell]
+      }
+    }
+  
+  
+  
+  if (verbose==TRUE) print('Starting to pool...')
   sorted=FALSE
-  while (TRUE) # straight assignment
+  while (ncol(all.distances)>=pooling.factor) # straight assignment
   {
    
 
@@ -45,7 +580,9 @@ while (TRUE)# Main loop
         {
           dummy.pool=c(column.reference[closest.pool],all.neighbours[closest.pool,1:pooling.factor]) # dummy.pool in cell numbers
           dummy.pool=c(dummy.pool,rep(NA,pooling.factor.start-pooling.factor))
+
           icells=rbind(icells,dummy.pool)
+          
           all.distances[which(is.element(column.reference,dummy.pool)),]=NA
           all.distances[which(is.element(all.neighbours,dummy.pool))]=NA
           sorted=TRUE
@@ -62,7 +599,7 @@ while (TRUE)# Main loop
   
   unique.icells=setdiff(icells,NA)
   
-  print(sprintf('After pooling reached %g iCells containing %g original cells',nrow(icells),length(unique.icells)))
+  if (verbose==TRUE) print(sprintf('After pooling reached %g iCells containing %g original cells',nrow(icells),length(unique.icells)))
   
   if (length(unique.icells)>(starting.cells-pooling.factor))
     return(icells)
@@ -73,7 +610,7 @@ while (TRUE)# Main loop
     if(pooling.factor==0)
       break
     else
-      print(sprintf('Decreasing pooling factor to %g',pooling.factor))
+      if (verbose==TRUE) print(sprintf('Decreasing pooling factor to %g',pooling.factor))
   }
     
   # removing pooled cells
@@ -81,7 +618,7 @@ while (TRUE)# Main loop
   pooled.cells=which(is.element(column.reference,unique.icells))
   if (length(pooled.cells)>0)
     {
-    print(sprintf('Removing %g used cells...',length(pooled.cells)))
+    if (verbose==TRUE) print(sprintf('Removing %g used cells...',length(pooled.cells)))
     all.distances=all.distances[-pooled.cells,]
     all.neighbours=all.neighbours[-pooled.cells,]
     column.reference=column.reference[-pooled.cells]
@@ -90,107 +627,366 @@ while (TRUE)# Main loop
 
   
   round.count=round.count+1
-
-  }
+}
 
 return(icells)
+}
+
+
+
+
+
+
+
+
+check.conditions = function (sample.conditions,verbose){
+ 
+if (length(sample.conditions)>1)   
+  {
+  all.sample.conditions=unique(sample.conditions) # keeps in order of fisrt appearance
+    
+  avg.pos=c()
+  for (k in 1:length(all.sample.conditions))
+    avg.pos[k]=mean(which(sample.conditions==all.sample.conditions[k]))
+  
+  incremental=unique(diff(avg.pos)>0)
+  
+  if (length(incremental)>1) error('Conditions must be in incremental order, contact bigSCale developer gio.iacono.work@gmail.com')
+  if (incremental==FALSE) error('Conditions must be in incremental order, contact bigSCale developer gio.iacono.work@gmail.com')
+  
+  
+  sample.conditions=cumsum(as.numeric(table(sample.conditions)))
+  
+  if (verbose==TRUE) print('Detected conditions for splitting the data:')
+  if (verbose==TRUE) print(sample.conditions)
+}
+  
+return(sample.conditions)
+  
+}
+
+
+
+
+
+
+
+
+#' iCells
+#' 
+#' Creates an iCell dataset starting from the typical outputs of CellRanger (.mex or .h5)
+#' 
+#' @param file.dir input dataset, file name
+#' @param target.cells Number of iCells you would like to obtain
+#' @param sample.conditions optional,  a factor indicating your sample conditions (for example, stages, treatments). This will prevent cells from different conditions to be pooled into the same iCell.
+#' @param neighbours How many neighbours are used to search for a mate. Increasing it will increase fidelity of iCells, but only slighlty. In fact, multiple, iterative searches for neighbours are perfomed anyway.
+#' @param verbose Whether to print on screen all the processing information
+
+#' @param pooling Advanced use only. A technical parameter, you should not touch this.
+#' @param q.cutoffs Advanced use only. The cutoff for pooling cells, default \bold{0.05}, meaning only cells closer than \bold{0.05} percentile are pooled. Deacresing the values yields better quality iCells but longer times, and viceversa.
+#' @param preproc.cells Advanced use only. how many cells to use for the initial creation of the model. Reduce it if you have memory issues. Useless to increase it.
+#' @param icells.chuncks Advanced use only. Size of the chunks of the original cells. Reduce it if you have memory issues. Probably useless to increase it.
+#' @param preproc.chuncks Advanced use only. Reduce it if you have memory issues. Increase to fasten the initial step where the model is calculated.
+#' @param min_ODscore Advanced use only. Increasing the value will result in using less highly variable genes for the creation of iCells.
+#' @return  A list with two elements: icells.data (for you) and debugging (for me, if there are problems).In addition, it writes to current working directory the icells matrix automatically under the name icells.mtx.gz.
+#'
+#' \itemize{i
+#' \item {\bold{icell.mat}} {icell Expression counts in the Matricx format}
+#' \item {\bold{iCells}} {indices of the original cells}
+#' \item {\bold{output.conditions}} {If you forced a pooling by condition (parameter \code{sample.conditions}) this vector contains the condition of each icell.}
+#' \item {\bold{model}} {The numerical model used to compute cell to cell distances. Its meaning is explained in the first part (bigSCale core, advanced use) of the GitHub tutorial}
+#' \item {\bold{driving.genes}} {The highly variable genes used to caculate cell to cell distances}
+#' }
+#' 
+#' @examples
+#' check the online tutorial at Github
+#'
+#' @export
+
+iCells= function (file.dir,target.cells,sample.conditions=NA,neighbours=500,verbose=FALSE,pooling='relative',q.cutoffs=0.05,preproc.cells=10000,icells.chuncks=100000,preproc.chuncks=200000,min_ODscore=3){
+  
+  
+
+  
+# Reading header for sample info
+out=bigscale.readMM(file=file.dir,size.only=TRUE)
+tot.cells=out[1]
+
+estimated.pooling=tot.cells/target.cells
+print(sprintf('Attempting to reduce the size approximately %g times',estimated.pooling))
+
+if (estimated.pooling<=5)
+  {
+  result.icells=iCells.simple(file.dir,pooling.factor=round(estimated.pooling-1),sample.conditions,pooling,q.cutoffs,verbose,preproc.cells,icells.chuncks,neighbours,preproc.chuncks,min_ODscore)
+  return(result.icells)
+  }
+
+if (estimated.pooling>5 & estimated.pooling<=25)
+  {
+  number=sqrt(estimated.pooling)
+  
+  pooling1=ceiling(number)-1
+  result1=iCells.simple(file.dir = file.dir,pooling.factor=pooling1,sample.conditions = sample.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)           
+
+  pooling2=floor(number)-1
+  result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)
+  
+  
+  iCells.final=deconvolute(result2$iCells,result1$iCells)
+  result.final=result2
+  result.final$iCells=iCells.final
+  return(list(icell.data=result.final,debugging=list(intermediate.raw1=result1,intermediate.raw2=result2)))
+  }
+  
+  
+  
+  
+if (estimated.pooling>25)
+{
+  number=estimated.pooling^(1/3)
+  
+  pooling1=min(ceiling(number)-1,4)
+  pooling2=min(ceiling(number)-1,4)
+  pooling3=min(floor(number)-1,4)
+  
+  result1=iCells.simple(file.dir = file.dir,pooling.factor=pooling1,sample.conditions = sample.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)                  
+  
+  result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore)
+  
+  result3=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling3,sample.conditions = result2$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore)
+  
+  
+  iCells.final=deconvolute(result2$iCells,result1$iCells)
+  iCells.final=deconvolute(result3$iCells,iCells.final)
+  result.final=result3
+  result.final$iCells=iCells.final
+  return(list(icell.data=result.final,debugging=list(intermediate.raw1=result1,intermediate.raw2=result2,intermediate.raw3=result3)))
+}
+
+  
 
 }
+
+
+iCells.simple = function (file.dir,pooling.factor,sample.conditions,pooling,q.cutoffs,verbose,preproc.cells,icells.chuncks,neighbours,preproc.chuncks,min_ODscore){
+ 
+library(SingleCellExperiment)
+  
+
+
+# Reading header for sample info
+out=bigscale.readMM(file=file.dir,size.only=TRUE)
+
+tot.cells=out[1]
+tot.numbers=out[3]
+avg.genes.cell=tot.numbers/tot.cells
+
+print(sprintf('Total of %g cells, to be reduced with pooling factor %g (=%g+1)',tot.cells,pooling.factor+1,pooling.factor))
+
+icells.chuncks=round(icells.chuncks*pooling.factor/4)
+print(sprintf('Adjusting  icells.chuncks to %g cells',icells.chuncks))
+
+# Initializing pre-processing parameters
+proproc.chuncks.nz=preproc.chuncks*avg.genes.cell
+downsamp=preproc.cells/tot.cells
+if (downsamp>1) downsamp=1
+
+print(sprintf('For the proprocessing, downsampling of %f',downsamp))
+
+icells.chuncks.nz=icells.chuncks*avg.genes.cell
+
+reps=round(tot.cells/100000)
+if(reps==0) reps=1
+if(reps>5) reps=5
+
+reps=1
+if (verbose==TRUE) print(sprintf('reps=%g',reps))
+
+driving.genes=c()
+
+for (propro.rep in 1:reps)
+      {
+      # Reading dataset chunk by chunk to create a subset for pre-processing
+      pointer=0
+      round=1
+      
+      while (TRUE)
+        {
+          out=bigscale.readMM(file=file.dir,max.vals = proproc.chuncks.nz,skip.vals = pointer)
+          if (length(out$dgTMatrix)==0) break
+          
+          ix.rand=sample( ncol(out$dgTMatrix),round(ncol(out$dgTMatrix)*downsamp))
+          out$dgTMatrix=out$dgTMatrix[,ix.rand]
+          
+          if (round==1)
+            tot.mat=out$dgTMatrix
+          else
+            tot.mat=cbind(tot.mat,out$dgTMatrix)
+          
+          print(sprintf('Incorporated %g cells for pre-processing',ncol(tot.mat)))
+          pointer=out$pointer
+          round=round+1
+          rm(out)
+          gc()
+        }
+      
+
+        gene.names=c()
+        for (k in 1:nrow(tot.mat))
+        gene.names[k]=sprintf('Gene_%g',k)
+        sce = SingleCellExperiment(assays = list(counts = tot.mat))
+        rm(tot.mat)
+        gc()
+        rownames(sce)=gene.names
+        
+        
+        sce=preProcess(sce)
+        if (propro.rep>1) sce@int_metadata$edges=edges # overwriting edges with the initial ones
+        sce = storeNormalized(sce,memory.save=FALSE)
+        sce=setModel(sce)
+        sce=setODgenes(sce,min_ODscore = min_ODscore)
+        if (propro.rep==reps & pooling=='absolute') sce=setDistances(sce) # only in the last round and if absolute pooling
+        
+        if (propro.rep==1) 
+          N=sce@int_metadata$N
+        else
+          N=N+sce@int_metadata$N
+        edges=sce@int_metadata$edges
+        dummy=which(sce@int_elementMetadata$ODgenes==1)
+        driving.genes=union(driving.genes,sce@int_metadata$express.filtered[dummy])
+        if (verbose==TRUE) print(sprintf('Pre-processing round %g, cumulated %g OD genes, sum(N)=%g',propro.rep,length(driving.genes),sum(N)))
+      }
+
+# Calculating percentiles
+N_pct=matrix(NA,length(edges)-1,length(edges)-1)
+for (k in 1:nrow(N))
+  for (j in 1:nrow(N))
+    N_pct[k,j] = sum(N[k,j:ncol(N)])/sum(N[k,])
+
+N_pct[is.na(N_pct)]=1 # fix 0/0
+
+if (verbose==TRUE) print(sprintf('Total sum of cases in N %g',sum(N)))
+
+if (pooling=='absolute')
+  {
+  q.cutoff.narrow=quantile(sce@int_metadata$D,q.cutoffs[1])
+  q.cutoff.large=quantile(sce@int_metadata$D,q.cutoffs[2])
+  if (verbose==TRUE) print(sprintf('Estimated cutoffs for cell pooling: narrow %.2f (quantile %.2f), large %.2f (quantile %.2f)',q.cutoff.narrow,q.cutoffs[1],q.cutoff.large,q.cutoffs[2]))
+  }
+else
+  {
+  q.cutoff.narrow=q.cutoffs[1]
+  q.cutoff.large=NA
+  }
+  
+
+
+
+# all pre-proc data is now available. proceeding to convolute one piece at a time
+rm(list=setdiff(setdiff(ls(), lsf.str()), c('file.dir','N_pct','edges','driving.genes','library.size','icells.chuncks.nz','avg.genes.cell','tot.cells','icells.chuncks','q.cutoff.narrow','q.cutoff.large','sample.conditions','pooling.factor','verbose','neighbours')))
+
+pointer=0
+round=1
+current.condition=1 # can be NA
+
+condition.names=as.character(unique(sample.conditions))
+print(condition.names)
+sample.conditions=check.conditions(sample.conditions,verbose)
+
+condition.pos=1
+if (length(sample.conditions)>1)
+  current.condition=sample.conditions[condition.pos]
+else
+  current.condition=NA
+
+tot.cells.read=0
+output.conditions=c()
+
+pb <- progress::progress_bar$new(format = "Analyzing cells [:bar] :current/:total (:percent) eta: :eta", tot.cells)
+pb$tick(0)
+
+while (TRUE)
+  {
+  cells.to.read=round(tot.cells-pointer/avg.genes.cell)
+
+  if (cells.to.read<(1.5*icells.chuncks)) icells.chuncks.nz=Inf
+
+  out=compute.distances.icell(file.dir=file.dir , max.vals=icells.chuncks.nz , pointer = pointer , driving.genes = driving.genes , N_pct = N_pct, edges = edges,q.cutoff.narrow = q.cutoff.narrow,q.cutoff.large=q.cutoff.large,chunk.number = round,current.condition=current.condition,pooling.factor=pooling.factor,verbose=verbose,neighbours=neighbours)
+
+  if(length(out)==0) break
+  
+  pointer=out$pointer
+  
+  if (round==1)
+    iCells=out$iCells
+  else
+    iCells=rbind(iCells,(out$iCells+tot.cells.read))
+
+  if (verbose==TRUE) print(range(out$iCells,na.rm=TRUE))
+  if (verbose==TRUE) print(range(out$iCells+tot.cells.read,na.rm=TRUE))
+  
+  tot.cells.read=tot.cells.read+out$read.cells
+  
+  if (length(sample.conditions)>1)
+    if (tot.cells.read>=current.condition) 
+      {
+      if (verbose==TRUE) print('Found a change of condition')
+      output.conditions=c(output.conditions,rep(condition.names[condition.pos],nrow(out$iCells)))
+      condition.pos=condition.pos+1
+      current.condition=sample.conditions[condition.pos]
+      }
+    
+  if (verbose==TRUE) print(sprintf('Total cells read (cumulative): %g, current group of iCells ranges from %g to %g, total iCells range from %g to %g',tot.cells.read,min(out$iCells,na.rm=TRUE),max(out$iCells,na.rm=TRUE),min(iCells,na.rm=TRUE),max(iCells,na.rm=TRUE)))
+  
+  pb$tick(out$read.cells)
+  
+  round=round+1
+  gc()
+  
+  }
+
+
+
+
+merge.chunks(verbose)
+icell.mat=Matrix::readMM("iCells.mtx.gz")
+return(list(icell.mat=icell.mat,iCells=iCells,output.conditions=output.conditions,model=N_pct,driving.genes=driving.genes))
+
+}
+
+
+
 
 
 #' Compute iCell distances
 #'
 #' @export
 
-compute.distances.icell = function (expr.data){
-  
-expr.data=as.matrix(expr.data)
- 
-#*************************************************************************************************************
-# Part 1) Initial processing of the dataset  *****************************************************************
-print('Pre-processing) Removing null rows ')
-  exp.genes=which(Rfast::rowsums(expr.data)>0)
-  if ((nrow(expr.data)-length(exp.genes))>0)
-    print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
-  expr.data=expr.data[exp.genes,]
-  gc()
-  
-print('PASSAGE 1) Setting the size factors ....')
-  lib.size = Rfast::colsums(expr.data)
-  
-print('PASSAGE 2) Setting the bins for the expression data ....')
-  edges=generate.edges(expr.data)
-  
-print('PASSAGE 3) Storing in the single cell object the Normalized data ....')
-  avg.library.size=mean(lib.size)
-  for (k in 1:ncol(expr.data)) expr.data[,k]=expr.data[,k]/lib.size[k]*avg.library.size
-  expr.data.norm=expr.data
-  rm(expr.data)
-  expr.data.norm=Matrix::Matrix(expr.data.norm)
-  gc()
-  
-print('PASSAGE 4) Computing the numerical model (can take from a few minutes to 30 mins) ....')
-  N_pct=fit.model(expr.data.norm,edges,lib.size) # add more rounds for a more acccurate model!!!!!
-  gc()
-  N_pct.out<<-N_pct
-  
-  
-print('PASSAGE 5) Computing OD genes ....')
-  ODgenes=calculate.ODgenes(expr.data.norm)
-  dummy=as.matrix(ODgenes[[1]])
-  driving.genes=which(dummy[,1]==1)
-  
-  driving.genes.out<<-driving.genes
-# ......................................................................................
-# ......................................................................................
+compute.distances.icell = function (file.dir,max.vals,pointer,driving.genes,N_pct,edges,q.cutoff.narrow,q.cutoff.large,chunk.number,current.condition,pooling.factor,verbose,neighbours){
 
+ 
+out=bigscale.readMM(file=file.dir,max.vals = max.vals,skip.vals = pointer,current.condition=current.condition)
+if (length(out$dgTMatrix)==0) return(c())
+pointer.new=out$pointer
+library.size=Matrix::colSums(out$dgTMatrix)
+read.cells=ncol(out$dgTMatrix)
 
 # normalize expression data for library size without scaling to the overall average depth
-expr.driving.norm=as.matrix(expr.data.norm[driving.genes,]/mean(lib.size))
-rm(expr.data.norm)
+expr.driving.norm=as.matrix(out$dgTMatrix[driving.genes,])
+rm(out)
+gc()
+for (k in 1:ncol(expr.driving.norm))
+  expr.driving.norm[,k]=expr.driving.norm[,k]/library.size[k]
 gc()
 
 
-
-
-# .....................................................................................
-# PART fixing the model ...............................................................
-tot.el=nrow(N_pct)
-
-# Configure deregulated treshold 
-p.cutoff=0.01
-  
-# Making N_pct symmetric
-  for (k in 1:tot.el)
-    for (h in 1:tot.el)
-      if (k>h) N_pct[k,h]=N_pct[h,k]
-  
-# 2) Finding deregulated
-dereg=N_pct<p.cutoff
-  
-# 3) Calculating log_scores and removing infinite values
-log.scores=-log10(N_pct)
-for (k in 1:tot.el)
-{
-  max.val=max(log.scores[k,is.finite(log.scores[k,])])
-  infinite.el=which(is.infinite(log.scores[k,]))
-  log.scores[k,infinite.el]=max.val
-  log.scores[infinite.el,k]=max.val
-}
-  
-# zeroing the diagonal and setting pval<dereg zone
-diag(log.scores)=0
-log.scores=abs(log.scores*dereg)
-# ......................................................................................
-# .....................................................................................
-  
-
+log.scores=get.log.scores(N_pct)
 
 # .....................................................................................
 # Allocating vector  .................................................................
 indA.size=1000000
   
-critical.value=max(lib.size)*max(expr.driving.norm)
+critical.value=max(library.size)*max(expr.driving.norm)
 if (critical.value>indA.size/10)
   {
   indA.size=indA.size*50
@@ -212,46 +1008,51 @@ ind.A=ind.A-1
 # CORE PART
 #  ......................................................................................
 
-downsampling=4
 iCells.tot=c()
 cell.reference=c(1:ncol(expr.driving.norm))
-q.cutoff=0.1
 round=1
+q.cutoff=q.cutoff.narrow # remains like that only if "absolute" pooling is used
+
 
 while (TRUE) 
   
   {
-  print(sprintf('Starting from unpooled cells....'))
-  print('')
+  if (verbose==TRUE) print(sprintf('Starting from %g unpooled cells....',ncol(expr.driving.norm)))
+  if (verbose==TRUE) print('')
+  
+  if (ncol(expr.driving.norm)<10) 
+    {
+    print('Less than 10 cells remaining, quitting')
+    break
+    }
   
   tot.cells=ncol(expr.driving.norm)
-  sample.size=min(500,(tot.cells-1))
+  sample.size=min(neighbours,(tot.cells-1))
   all.distances=matrix(0,tot.cells,sample.size)
   all.neighbours=matrix(0,tot.cells,sample.size)
   
   random.neighbours=sample(tot.cells,sample.size)
   
-  print('Computing distances ...')
+  if (verbose==TRUE) print('Computing distances ...')
   for ( k in 1:tot.cells)
     {
     random.neighbours=setdiff(sample(tot.cells,(sample.size+1)),k)
     random.neighbours=random.neighbours[1:sample.size]
-    all.distances[k,]=distances_icells(expr.driving.norm[,c(k,random.neighbours)],log.scores,ind.A,lib.size[c(k,random.neighbours)])
+    all.distances[k,]=distances_icells(expr.driving.norm[,c(k,random.neighbours)],log.scores,ind.A,library.size[c(k,random.neighbours)])
     all.neighbours[k,]=random.neighbours
     }
   
-  # Initializing quantile  ...............................................
-  if (round==1) 
+  if (is.na(q.cutoff.large)) # then we are using "relative" pooling
     {
-    q.cutoff.narrow=quantile(all.distances,0.1)
-    q.cutoff.large=quantile(all.distances,0.25)
-    q.cutoff=q.cutoff.narrow
-    all.distances.out<<-all.distances
-    all.neighbours.out<<-all.neighbours
+    q.cutoff=quantile(all.distances,q.cutoff.narrow)
+    if (verbose==TRUE) print(sprintf('Relative pooling: Estimated relative distance cutoff %.2f (quantile %.2f)',q.cutoff,q.cutoff.narrow))
     }
-  
+    
+    
+  if (verbose==TRUE) print('Launching iCells pooling ...')
   # Computing iCells ...............................................
-  icells=pool.icell(all.distances,all.neighbours,downsampling,q.cutoff)
+  icells=pool.icell.fast(all.distances = all.distances,all.neighbours = all.neighbours,pooling.factor = pooling.factor , cutoff = q.cutoff,verbose)
+  icells.local=icells
   if (length(icells)>0)
       {
       for (k in 1:nrow(icells)) # remapping icells to reference safe numbers
@@ -263,33 +1064,122 @@ while (TRUE)
       pooling.done=FALSE
   
   # Unpooled cells .................................................
-  unpooled.cells=setdiff(1:tot.cells,iCells.tot)
-  print(sprintf('%g cells are still unpooled....',length(unpooled.cells)))
+  unpooled.cells=setdiff(1:tot.cells,icells.local)
+  if (verbose==TRUE) print(sprintf('%g cells are still unpooled .... (pooling.factor=%g)',length(unpooled.cells),pooling.factor))
   
   
-  if (length(unpooled.cells)<=downsampling) # we are done, pooed enough
-    break
+  # if (length(unpooled.cells)<=(pooling.factor-1)) # -1 because if we have 4 cells left, we only have 3 possible neighbours,for example. we are done, pooed enough
+  #   break
   if (pooling.done==FALSE) # could not pool more even after looking for more neighbours
-    if (q.cutoff==q.cutoff.large) # again we are done
+    if (q.cutoff==q.cutoff.large | is.na(q.cutoff.large)) # again we are done
       break
     else
       q.cutoff=q.cutoff.large
   
   expr.driving.norm=expr.driving.norm[,unpooled.cells]
   cell.reference=cell.reference[unpooled.cells]
+  library.size=library.size[unpooled.cells]
   gc()
   round=round+1
   }
 
+rm(list=setdiff(setdiff(ls(), lsf.str()), c('file.dir','max.vals','pointer','pointer.new','iCells.tot','chunk.number','read.cells','verbose')))
+gc()
 
 
-return(iCells.tot)
+# reading again same part as beginning
+if (verbose==TRUE) print('Reading again from source')
+out=bigscale.readMM(file=file.dir,max.vals = max.vals,skip.vals = pointer)
+
+#adding a fake all zero column
+out$dgTMatrix=cbind(out$dgTMatrix,rep(0,nrow(out$dgTMatrix)))
+fake.column=ncol(out$dgTMatrix)
+# initializing other stuff
+size.icells=ncol(iCells.tot)
+iCells.mat=matrix(0,nrow(out$dgTMatrix),nrow(iCells.tot))
+
+icells.at.once=500
+starting.icell=1
+
+while (TRUE)
+  {
+  gc()
+  end.icell=min((starting.icell+icells.at.once-1),nrow(iCells.tot))
+  
+  iCells.tot.in.use=iCells.tot[starting.icell:end.icell, ]
+  
+  if (verbose==TRUE) print(sprintf('Processing iCells from %g to %g',starting.icell,end.icell))
+  
+  # initializing icells.vector
+  icells.vector=as.vector(t(iCells.tot.in.use))
+  icells.vector[is.na(icells.vector)]=fake.column
+  jumps=c(0,c(1:nrow(iCells.tot.in.use))*size.icells)
+  
+  temp.full.reshuff=as.matrix(out$dgTMatrix[,icells.vector])
+
+  
+  #print(sprintf('k runs from %g to %g',1,(length(jumps)-1)))
+  for (k in 1:(length(jumps)-1))
+    {
+    #print(sprintf('k=%g (out of %g),using %g -%g out of %g(%g)',k,length(jumps),jumps[k]+1,jumps[k+1],length(icells.vector),ncol(temp.full.reshuff)))
+    iCells.mat[,k+starting.icell-1]=Rfast::rowsums(temp.full.reshuff[,(jumps[k]+1):jumps[k+1]]) 
+    }
+  starting.icell=end.icell
+  
+  if (starting.icell==nrow(iCells.tot))
+    break
+  
+  }
+
+# print('Creating iCells matrix ...')
+# out$dgTMatrix=as.matrix(out$dgTMatrix)
+# gc()
+# for (k in 1:nrow(iCells.tot))
+# {
+#   icell.to.use=iCells.tot[k,!is.na(iCells.tot[k,])]
+#   iCells.mat[,k]=Rfast::rowsums(out$dgTMatrix[,icell.to.use]) # fix NA problem
+# }
+  
+iCells.mat=Matrix::Matrix(iCells.mat)
+gc()
+
+bigscale.writeMM(data = iCells.mat,file.name = sprintf('Temp_Part_%g.mtx.gz',chunk.number))
+
+
+if (verbose==TRUE) print(dim(iCells.tot))
+
+return(list(iCells=iCells.tot,pointer=pointer.new,read.cells=read.cells))
 }
 
 
 
+
+
+
+
+
+compute.max.inter = function (D,clusters) {
+
+all.inter=c()
+for (k in 1:max(clusters))
+  for (h in 1:max(clusters))
+    all.inter=c(all.inter,mean(D[which(clusters==h),which(clusters==k)]))
+
+print(sprintf('Computed maximum inter-cluster distance %g',max(all.inter)))
+
+max.all.inter=max(all.inter)
+return(max.all.inter)
+    
+}
+
+
+
+
+
 bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size,fragment=FALSE) {
-  
+
+create.distances=FALSE
+
 num.samples=ncol(expr.data.norm)
   
 if (fragment==FALSE)
@@ -309,6 +1199,8 @@ mycl=rep(1,ncol(expr.data.norm))
 tot.recursive=1
 #current.cutting=40
 unclusterable=rep(0,length(mycl))
+
+if (create.distances==TRUE) D.final=matrix(0,ncol(expr.data.norm),ncol(expr.data.norm))
 
 while(1){
 
@@ -333,6 +1225,14 @@ while(1){
         action.taken=1
       else
         unclusterable[which(mycl==k)]=1
+      
+      if (create.distances==TRUE)
+        {
+        D.final[which(mycl==k),which(mycl==k)]=D # assigning distances
+        max.inter=compute.max.inter(D,temp.clusters)
+        D.final[which(mycl==k),which(mycl!=k)]=D.final[which(mycl==k),which(mycl!=k)]+max.inter
+        D.final[which(mycl!=k),which(mycl==k)]=D.final[which(mycl!=k),which(mycl==k)]+max.inter
+        }
       #print(sprintf('Partitioned cluster %g/%g in %g sub clusters ...',k,max(mycl),max(temp.clusters)))
       mycl.new[which(mycl==k)]=temp.clusters+max(mycl.new)
       
@@ -380,9 +1280,10 @@ if (length(bad.clusters)>0)
   for (k in 1:length(indexes))
     mycl[indexes[[k]]]=k
   warning(sprintf('Hidden %g clusters of %g cells total to be used: they are too small',length(bad.clusters),length(bad.cells)))
-  }
+}
 
-
+if (create.distances==TRUE) saveRDS(object = D.final,file = 'Distances_recursive.RDS')
+  
 return(mycl)
 }
 
@@ -392,14 +1293,14 @@ return(mycl)
 #' Works with any given number of networks (N).  The centralities previously calculated with \code{compute.network()} for N networks are given as input.
 #' The script sorts the genes accoring to their change in centrality between the first network (first element of the input list) and the other N-1 networks (the rest of the list)
 #'
-#' @param centralities List of at least two elements. Each elemnt must be the (\code{data.frames}) of the centralities previously calculated by \code{compute.network()}. 
+#' @param centralities List of at least two elements. Each element must be the (\code{data.frames}) of the centralities previously calculated by \code{compute.network()}. 
 #' @param names.conditions character of the names of the input networks, same length of the \bold{compute.network()}
 #' 
 #' @return  A list with a (\code{data.frame}) for each centrality. In each (\code{data.frame}) the genes are ranked for thier change in centrality.
 #'
 #'
 #' @examples
-#' out=compute.network(expr.data,gene.names)
+#' check the online tutorial at Github
 #'
 #' @export
  
@@ -438,9 +1339,9 @@ compare.centrality <- function(centralities,names.conditions)
     if (length(centralities)>2)
     {
       result[,length(centralities)+1]=result[,1]-(apply(X = result[,2:length(centralities)],MARGIN = 1,FUN = max))
-      ranking=rank(result[,length(centralities)+1])
-      dummy=which(ranking>(length(ranking)/2))
-      ranking[dummy]=length(ranking)-ranking[dummy]
+      ranking=order(result[,length(centralities)+1],decreasing = TRUE)
+      #dummy=which(ranking>(length(ranking)/2))
+      #ranking[dummy]=length(ranking)-ranking[dummy]
       result[,length(centralities)+2]=ranking
     }
     else
@@ -588,6 +1489,8 @@ compute.network = function (expr.data,gene.names,clustering='recursive',quantile
 if (is.na(previous.output))  
   {
   
+  if (ncol(expr.data)>20000)
+    warning('It seems you are running compute.network on a kind of large dataset, it it failed for memory issues you should try the compute.network for large datasets')
   expr.data=as.matrix(expr.data)
   
   
@@ -617,7 +1520,7 @@ if (is.na(previous.output))
   gc()
     
   print('PASSAGE 4) Computing the numerical model (can take from a few minutes to 30 mins) ....')
-  model=fit.model(expr.data.norm,edges,lib.size)
+  model=fit.model(expr.data.norm,edges,lib.size)$N_pct
   gc()
     
   print('PASSAGE 5) Clustering ...')
@@ -853,7 +1756,7 @@ compute.pseudotime = function (minST){
 
 bigSCale.violin = function (gene.expr,groups,gene.name){
   
-  tot.clusters=max(groups)
+  tot.clusters=length(unique(groups))
   df=adjust.expression(gene.expr = gene.expr, groups = groups)
 
   p=ggplot2::ggplot(df, ggplot2::aes(x=groups, y=log2(gene.expr+1))) + ggplot2::geom_violin(fill = RgoogleMaps::AddAlpha("grey90",0.5), colour = RgoogleMaps::AddAlpha("grey90",0.5), trim=TRUE,scale='width') + ggbeeswarm::geom_quasirandom(mapping = ggplot2::aes(color=groups),varwidth = TRUE) + ggplot2::scale_colour_manual(name="color", values=set.quantitative.palette(tot.clusters)) + ggplot2::theme_bw() + ggplot2::ggtitle(gene.name)+ ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
@@ -866,9 +1769,10 @@ bigSCale.violin = function (gene.expr,groups,gene.name){
 
 adjust.expression = function (gene.expr,groups){
   
+  unique.groups=unique(groups,fromLast = FALSE)
   result=c()
-  for (k in 1:max(groups))
-    result[k]=sum(gene.expr[which(groups==k)]>0)/sum(groups==k)
+  for (k in 1:length(unique.groups))
+    result[k]=sum(gene.expr[which(groups==unique.groups[k])]>0)/sum(groups==unique.groups[k])
   
   cut.to=max(result)
   print(result)
@@ -876,9 +1780,9 @@ adjust.expression = function (gene.expr,groups){
   
   TOTretained=c()
   
-  for (k in 1:max(groups))
+  for (k in 1:length(unique.groups))
     {
-    group.pos=which(groups==k)
+    group.pos=which(groups==unique.groups[k])
     order=sort(gene.expr[group.pos],index.return=T,decreasing = TRUE)
     retained=order$ix[1:round(length(order$ix)*cut.to)]
     retained=group.pos[retained]
@@ -887,8 +1791,9 @@ adjust.expression = function (gene.expr,groups){
   
   gene.expr=gene.expr[TOTretained]
   groups=groups[TOTretained]
-  
-  return(data.frame(groups=as.factor(groups),gene.expr =gene.expr))
+  #groups = factor(groups, levels = unique.groups)
+  groups = factor(groups)
+  return(data.frame(groups=groups,gene.expr =gene.expr))
   
 }
 
@@ -1116,7 +2021,7 @@ set.quantitative.palette = function(tot.el){
   if (tot.el<3)
     palette=randomcoloR::distinctColorPalette(tot.el)
   else
-    if (tot.el<=12)
+    if (tot.el<=11)
       {
       palette=c('#ffe119', '#4363d8', '#f58231', '#e6beff', '#800000', '#000075', '#a9a9a9', '#000000','#FF0000','#fffac8','#f032e6')
       palette=palette[1:tot.el]
@@ -1264,6 +2169,39 @@ return(out)
 }
 
 
+get.log.scores = function (N_pct){
+  
+
+  tot.el=nrow(N_pct)
+  
+  # Configure deregulated treshold 
+  p.cutoff=0.01
+  
+  # Making N_pct symmetric
+  for (k in 1:tot.el)
+    for (h in 1:tot.el)
+      if (k>h) N_pct[k,h]=N_pct[h,k]
+  
+  # 2) Finding deregulated
+  dereg=N_pct<p.cutoff
+  
+  # 3) Calculating log_scores and removing infinite values
+  log.scores=-log10(N_pct)
+  for (k in 1:tot.el)
+  {
+    max.val=max(log.scores[k,is.finite(log.scores[k,])])
+    infinite.el=which(is.infinite(log.scores[k,]))
+    log.scores[k,infinite.el]=max.val
+    log.scores[infinite.el,k]=max.val
+  }
+  
+  # zeroing the diagonal and setting pval<dereg zone
+  diag(log.scores)=0
+  log.scores=abs(log.scores*dereg)
+  
+}
+
+
 
 bigscale.DE = function (expr.norm, N_pct, edges, lib.size, group1,group2,speed.preset='slow',plot.graphic=FALSE){
   
@@ -1366,7 +2304,6 @@ if (length(group2)>max.size)
   group2=sample(group2)
   group2=group2[1:max.size]
 } 
-
 
 
 # Making N_pct symmetric
@@ -1643,52 +2580,18 @@ return(list(clusters=clusters,ht=ht))
 
 compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size){
   
+  # normalize expression data for library size without scaling to the overall average depth
   if (class(expr.norm)=='big.matrix')
-    expr.norm=bigmemory::as.matrix(expr.norm)
+    expr.driving.norm=bigmemory::as.matrix(expr.norm[driving.genes,])/mean(lib.size)
   else
-    expr.norm=as.matrix(expr.norm)
-  
+    expr.driving.norm=as.matrix(expr.norm[driving.genes,])/mean(lib.size)
   gc()
-  
-
   
   if (!hasArg(genes.discarded)) genes.discarded =c()
-  
-  tot.el=nrow(N_pct)
-  #if issparse(total_data)
 
-  
-  # Configure deregulated treshold 
-  p.cutoff=0.01
-  
-  # Making N_pct symmetric
-  for (k in 1:tot.el)
-    for (h in 1:tot.el)
-      if (k>h) N_pct[k,h]=N_pct[h,k]
-        
-  # 2) Finding deregulated
-  dereg=N_pct<p.cutoff
-  
-  # 3) Calculating log_scores and removing infinite values
-  log.scores=-log10(N_pct)
-  for (k in 1:tot.el)
-    {
-    max.val=max(log.scores[k,is.finite(log.scores[k,])])
-    infinite.el=which(is.infinite(log.scores[k,]))
-    log.scores[k,infinite.el]=max.val
-    log.scores[infinite.el,k]=max.val
-  }
+  log.scores=get.log.scores(N_pct)
   
 
-  
-  # zeroing the diagonal and setting pval<dereg zone
-  diag(log.scores)=0
-  log.scores=abs(log.scores*dereg)
-                 
-  # normalize expression data for library size without scaling to the overall average depth
-  expr.driving.norm=bigmemory::as.matrix(expr.norm[driving.genes,])/mean(lib.size)
-  rm(expr.norm)
-  gc()
   # Consumes several Gb of memory this step!
   # Vector is a trick to increase speed in the next C++ part
 
@@ -1927,12 +2830,13 @@ fit.model = function(expr.norm,edges,lib.size,plot.pre.clusters=FALSE){
      for (j in 1:nrow(N))
        N_pct[k,j] = sum(N[k,j:ncol(N)])/sum(N[k,])
   
+  N_pct[is.na(N_pct)]=1 # fix 0/0
   print(sprintf("Computed Numerical Model. Enumerated a total of %g cases",sum(N)))
   gc()
   
 
   
-  return(N_pct)
+  return(list(N_pct=N_pct,N=N))
    
    
 }
@@ -2013,10 +2917,15 @@ enumerate = function(expr.norm,edges,lib.size) {
 
 calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0,1)) {
 
-  if (class(expr.norm)=='big.matrix')
-    expr.norm=bigmemory::as.matrix(expr.norm)
+  if (ncol(expr.norm)<15000)
+    downsample.od.genes = c(1:ncol(expr.norm))
   else
-    expr.norm=as.matrix(expr.norm)
+    downsample.od.genes = sample(ncol(expr.norm),15000)
+  
+  if (class(expr.norm)=='big.matrix')
+    expr.norm=bigmemory::as.matrix(expr.norm[,downsample.od.genes])
+  else
+    expr.norm=as.matrix(expr.norm[,downsample.od.genes])
   
   #start.time <- Sys.time() 
   
@@ -2024,7 +2933,9 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   num.genes=nrow(expr.norm) 
   min.cells=max( 15,  round(0.002*length(expr.norm[1,]))) 
   skwed.cells=max( 5,  round(0.002*length(expr.norm[1,]))) 
-
+  
+  if (verbose)
+    print(sprintf('Analyzing %g cells for ODgenes, min_ODscore=%.2f',ncol(expr.norm),min_ODscore))
   
   # Discarding skewed genes
   if (verbose)
@@ -2407,7 +3318,7 @@ transform.matrix<-function(expr.norm,case){
   if (memory.save.active==TRUE & case==4)
     {
     print('saving to swap transformed matrix ...')  
-    expr.norm=bigmemory::as.big.matrix(expr.norm)
+    expr.norm=bigmemory::as.big.matrix(expr.norm,backingfile = 'transcounts.bin',backingpath = getwd())
     }
 
   
@@ -2510,7 +3421,7 @@ id.map<-function(gene.list,all.genes){
 
 bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TRUE){
   
- 
+
  # Generate the edges for the binning
  print('PASSAGE 1) Setting the bins for the expression data ....')
  sce=preProcess(sce)

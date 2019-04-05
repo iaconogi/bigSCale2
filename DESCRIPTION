@@ -12,9 +12,9 @@ License: GPL (>= 2)
 Imports: Rcpp, SingleCellExperiment, Rfast, Rtsne, float, ggplot2, zoo,
         randomcoloR, dendextend, BioQC, igraph, org.Hs.eg.db,
         org.Mm.eg.db, Matrix, RgoogleMaps, ggbeeswarm, ggpubr, plotly,
-        heatmap3, progress, bigmemory
+        heatmap3, progress, bigmemory, R.utils
 LinkingTo: Rcpp
 RoxygenNote: 6.1.1
 Encoding: UTF-8
 NeedsCompilation: yes
-Packaged: 2019-03-08 10:41:20 UTC; admin
+Packaged: 2019-04-05 10:18:35 UTC; admin

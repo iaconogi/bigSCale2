@@ -25,15 +25,15 @@ setMethod(f="restoreData",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            
-            X=bigmemory::as.matrix(object@int_metadata$expr.norm.big)
-            normcounts(object)=Matrix::Matrix(X)
+            gc()
+            normcounts(object)=Matrix::Matrix(bigmemory::as.matrix(object@int_metadata$expr.norm.big))
+            X_object@int_metadata$expr.norm.big
             rm(X)
             gc()
             
-
-            X=bigmemory::as.matrix(object@int_metadata$transformed.big)
-            assay(object, "transcounts")=Matrix::Matrix(X)
+            gc()
+            assay(object, "transcounts")=Matrix::Matrix(bigmemory::as.matrix(object@int_metadata$transformed.big))
+            X=object@int_metadata$transformed.big
             rm(X)
             gc()
 
@@ -152,7 +152,10 @@ setMethod(f="preProcess",
               rm(gene.names) 
               rm(expr.data)
               gc()
-            }            
+            }      
+            
+            object@int_metadata$express.filtered=exp.genes
+            
             # Assign the size factors 
             print('Setting the size factors ....')
             print(class(counts(object)))
@@ -191,10 +194,12 @@ setMethod(f="setModel",
           definition=function(object)
           {
             if ('normcounts' %in% assayNames(object))
-              object@int_metadata$model=fit.model(expr.norm = normcounts(object),edges = object@int_metadata$edges,lib.size=sizeFactors(object))
+             model.output=fit.model(expr.norm = normcounts(object),edges = object@int_metadata$edges,lib.size=sizeFactors(object))
             else
-              object@int_metadata$model=fit.model(expr.norm = object@int_metadata$expr.norm.big,edges = object@int_metadata$edges,lib.size=sizeFactors(object))  
+            model.output=fit.model(expr.norm = object@int_metadata$expr.norm.big,edges = object@int_metadata$edges,lib.size=sizeFactors(object)) 
             
+            object@int_metadata$model=model.output$N_pct
+            object@int_metadata$N=model.output$N
             return(object)
           }
 )
@@ -373,7 +378,7 @@ setMethod(f="setDistances",
             if ('normcounts' %in% assayNames(object))
               object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object))
             else
-              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)))
+              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)), backingfile = 'D.bin',backingpath = getwd())
             
             gc()
             #validObject(object)
@@ -637,7 +642,7 @@ setMethod(f="viewSignatures",
           definition=function(object,selected.cluster)
           {
             if (missing(selected.cluster))
-              bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = assay(sce,'transcounts'), signatures = object@int_metadata$Signatures,size.factors = sizeFactors(object),type='signatures') 
+              bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = assay(object,'transcounts'), signatures = object@int_metadata$Signatures,size.factors = sizeFactors(object),type='signatures') 
             else
             {
               Mlist=object@int_metadata$Mlist
@@ -647,7 +652,7 @@ setMethod(f="viewSignatures",
                 #dummy=Mlist[[selected.cluster,k]]
                 signatures[[k]]=Mlist[[selected.cluster,k]]#dummy$GENE_NUM
               }
-              bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = assay(sce,'transcounts'), signatures = signatures,size.factors = sizeFactors(object),type='levels')  
+              bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = assay(object,'transcounts'), signatures = signatures,size.factors = sizeFactors(object),type='levels')  
             }
           }
 )
@@ -689,7 +694,7 @@ setMethod(f="storeNormalized",
             if (memory.save==TRUE)
               {
               print('Saving to swap the normalized expression matrix...')
-              dummy=bigmemory::as.big.matrix(dummy)
+              dummy=bigmemory::as.big.matrix(dummy,backingfile = 'normcounts.bin',backingpath = getwd())
               object@int_metadata$expr.norm.big=dummy
               }
               else
@@ -898,11 +903,22 @@ setMethod(f="viewGeneViolin",
               print('Violin plots expects only one gene at the time. Multiple gene names supperted by viewGeneBarPlot')
             else
              if (missing(groups))
-                  bigSCale.violin(gene.expr = normcounts(object)[pos,],groups = getClusters(object),gene.name=gene.name)
+                  {
+                  p.out=bigSCale.violin(gene.expr = normcounts(object)[pos,],groups = getClusters(object),gene.name=gene.name)
+                  groups = getClusters(object)
+                  gene.expr = normcounts(object)[pos,]
+                  }
                else
-                  bigSCale.violin(gene.expr = normcounts(object)[pos,],groups = groups,gene.name=gene.name)
-              
+                  {
+                  p.out=bigSCale.violin(gene.expr = normcounts(object)[pos,],groups = groups,gene.name=gene.name)
+                  gene.expr = normcounts(object)[pos,]
+                  }
             
+          all.groups=sort(unique(groups))       
+          avg.exp=c()
+            for (k in 1:length(all.groups))
+              avg.exp[k]=mean(gene.expr[which(groups==all.groups[k])])
+          return(avg.exp)  
           }
 )
 

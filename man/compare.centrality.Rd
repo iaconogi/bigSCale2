@@ -7,7 +7,7 @@
 compare.centrality(centralities, names.conditions)
 }
 \arguments{
-\item{centralities}{List of at least two elements. Each elemnt must be the (\code{data.frames}) of the centralities previously calculated by \code{compute.network()}.}
+\item{centralities}{List of at least two elements. Each element must be the (\code{data.frames}) of the centralities previously calculated by \code{compute.network()}.}
 
 \item{names.conditions}{character of the names of the input networks, same length of the \bold{compute.network()}}
 }
@@ -19,6 +19,6 @@ Works with any given number of networks (N).  The centralities previously calcul
 The script sorts the genes accoring to their change in centrality between the first network (first element of the input list) and the other N-1 networks (the rest of the list)
 }
 \examples{
-out=compute.network(expr.data,gene.names)
+check the online tutorial at Github
 
 }

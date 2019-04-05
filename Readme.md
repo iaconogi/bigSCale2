@@ -20,7 +20,7 @@
 
 
 
-### bigSCale 2 Core (clustering, phenotyping, pseudotime)
+### **bigSCale 2 Core (clustering, phenotyping, pseudotime)**
 
 * [Quick start and basic usage](#bigscale-2-core) 
     + [Running bigSCale](#running-the-analysis)
@@ -37,7 +37,7 @@
 
 ### **bigSCale 2 Gene Regulatory Networks**
 
-* [Quick start and basic use](#bigscale-2-gene-regulatory-networks-tutorial)
+* [Quick start](#bigscale-2-gene-regulatory-networks-tutorial)
     + [Inferring the networks](#inferring-the-networks)
     + [Comparing node centrality](#comparing-node-centrality)
     + [Integration with DE](#integration-with-DE)
@@ -47,15 +47,9 @@
 
     
 
-### bigSCale 2 iCells for big Datasets
+### **bigSCale 2 iCells for big Datasets**
 
-* Quick start and basic use
-    + Running bigSCale
-    + Visualizing results
-* Advanced use
-    + Item 2a
-    + [Link to Header](#the-header)
-
+* [Quick start](#bigscale-2-icells)
 
 
 # **bigSCale 2 Core**
@@ -417,8 +411,84 @@ results.ctl=compute.network(previous.output = results.ctl,quantile.p = 0.999)
 ```
 Also, if you believe that your network is too dense (too many edges) or not dense enough (not enough edges), you can re-run the analysis increase or decreasing `quantile.p`, respectevely.
 
+# bigSCale 2 iCells
+
+iCells are the most peculiar and interesting feature of bigSCale2. With iCells, you can reduce large datasets of any size into smaller datasets of significantly higher quality. These datasets can be in turn analyzed with any tool, also those which do not natively support large cell numbers. We now show to examples using the two different output format you can typically encounter: mtx and hdf5. If you have an expression matrix which is loaded in R workspace first write it to .mex file using the very simple `Matrix::writeMM()` and then proceed as I show next.
 
 
+# Example 1: 2 millions cells in .mtx format
+
+As an example we now transform the dataset of 2 millions cells of the recent work: [The single-cell transcriptional landscape of mammalian organogenesis](https://www.nature.com/articles/s41586-019-0969-x).
+
+At the moment the iCells work with the output of CellRanger, which is sparse matrix file. We download the 2M cells counts *gene_counts.txt* from [here](https://oncoscape.v3.sttrcancer.org/atlas.gs.washington.edu.mouse.rna/downloads). This file is in the .mex format, one of the possible outputs of CellRanger. 
+
+We now create the iCells, setting to reduce to approximately 15K cells:
+
+```{r}
+out=iCells(file.dir = "gene_counts.txt",target.cells = 15000)
+```
+
+This will take some time (2M cells are a lot). So you can find the iCells [here](dropbox something....).
+The output of `iCells()` includes the iCells expression counts, the indexes of the original cells for each iCell and other elements (see the the help of the function). 
 
 
+# Example 2: 270K cells in .h5 format
 
+We will now process the 384K cells of the Umbilical cord blood dataset from the [human cell atlas portal](https://preview.data.humancellatlas.org/).
+The final result of this tutoprial, a dataset of approximately 8K high quality iCells from umbilical cord blood can be found [here](dropbox something....).
+This example is different than the previous one in three ways: 1) the format of the input is .h5 instead of .mtx 2) the cell are unfiltered, so we have to filter the cells before running
+`iCells()` 3) We will use the conditions (namely, the patient IDs of each cell) to instruct `iCells()` not to pool cells of different patients. **I do not reccomand doing this, normally**: I do not see any problem if an iCell contains cells of, say, two patients. It just means that this iCell represents a cell type present in more than one patient. However, If somebody really needs to keep some conditions disjoint at the iCell level he/she can do as follows.
+
+Having an HDF5 format, first you have to convert it to .mex using `bigscale.convert.h5()`. I will remove the conversion step in the future, but for the moment ...
+First we inspect the structure of the .h5 file to locate where the genome version  ( which tells as the field name in which data is stored).
+
+```{r}
+rhdf5::h5ls("ica_cord_blood_h5.h5")
+```
+```{r}
+     group                    name       otype  dclass       dim
+0        /                  GRCh38   H5I_GROUP                  
+1  /GRCh38                barcodes H5I_DATASET  STRING    384000
+2  /GRCh38                    data H5I_DATASET INTEGER 260473471
+3  /GRCh38              gene_names H5I_DATASET  STRING     33694
+4  /GRCh38                   genes H5I_DATASET  STRING     33694
+5  /GRCh38                 indices H5I_DATASET INTEGER 260473471
+6  /GRCh38                  indptr H5I_DATASET INTEGER    384001
+7  /GRCh38                   shape H5I_DATASET INTEGER         2
+8        / PYTABLES_FORMAT_VERSION   H5I_GROUP                  
+9        /                 VERSION   H5I_GROUP                  
+10       /             titldfdffde   H5I_GROUP                  
+11       /                   title   H5I_GROUP                  
+12       /                 version   H5I_GROUP   
+```
+The genome version is GRCh38.
+Now we convert to .mtx format and, at the same time, we filter the cells. Here, I select the cells with at least 400 detected genes.
+
+```{r}
+out=bigscale.convert.h5(input.file = "ica_cord_blood_h5.h5",output.file, "ica_cord_blood.mtx.tar.gz",counts.field = "GRCh38",filter.cells = 400)
+```
+
+The output of the funtion contains the indices of the selected cells. Running `length(out$filtered.cells)` shows that we remained with 278367 cells.
+We now fetch the barocodes for these cells, which contain the patient IDs.
+
+```{r}
+barcodes=rhdf5::h5read(file = "ica_cord_blood_h5.h5",name = "GRCh38/barcodes")
+barcodes[1]
+```
+```{r}
+[1] "MantonCB1_HiSeq_1-AAACCTGAGGAGTTGC-1"
+```
+As explained in the cell atlas, the patient ID is the part "CB1" of this barcode. There are 8 patient IDs. With the next command, we create a factor variable containing the IDs and we next fetch those of the fltered cells.
+
+```{r}
+IDs=as.factor(apply(X = barcodes,MARGIN = 1,FUN = substr,start=7,stop=9))
+IDs=IDs[out$filtered.cells]
+```
+We can finally create the iCells, here I decide that I want to reduce to approximately 8K iCells.
+
+```{r}
+out=iCells(file.dir = "ica_cord_blood.mtx.tar.gz",target.cells = 8000,sample.conditions = IDs)
+```
+out is a list containing all the necessary information, including the new expression counts and the mapping indeces of each iCell to the original cells. See the help of the function for more information. Below, a plot showing how the iCells, having an increased quality, improve the quality of result, as for example the segregation in the TSNE plot.
+
+![](figures/10xUGM.png)
