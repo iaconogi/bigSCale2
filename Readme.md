@@ -420,7 +420,7 @@ iCells are the most peculiar and interesting feature of bigSCale2. With iCells, 
 
 As an example we now transform the dataset of 2 millions cells of the recent work: [The single-cell transcriptional landscape of mammalian organogenesis](https://www.nature.com/articles/s41586-019-0969-x).
 
-At the moment the iCells work with the output of CellRanger, which is sparse matrix file. We download the 2M cells counts *gene_counts.txt* from [here](https://oncoscape.v3.sttrcancer.org/atlas.gs.washington.edu.mouse.rna/downloads). This file is in the .mex format, one of the possible outputs of CellRanger. 
+At the moment the iCells works with either .mex files or .h5 files, which are the typical outputs of CellRanger. We download the 2M cells counts *gene_counts.txt* from [here](https://oncoscape.v3.sttrcancer.org/atlas.gs.washington.edu.mouse.rna/downloads). This file is in the .mex format.
 
 We now create the iCells, setting to reduce to approximately 15K cells:
 
@@ -428,14 +428,14 @@ We now create the iCells, setting to reduce to approximately 15K cells:
 out=iCells(file.dir = "gene_counts.txt",target.cells = 15000)
 ```
 
-This will take some time (2M cells are a lot). So you can find the iCells [here](dropbox something....).
+This will take some time (2M cells are a lot). So you can find the iCells [here].
 The output of `iCells()` includes the iCells expression counts, the indexes of the original cells for each iCell and other elements (see the the help of the function). 
 
 
 # Example 2: 270K cells in .h5 format
 
 We will now process the 384K cells of the Umbilical cord blood dataset from the [human cell atlas portal](https://preview.data.humancellatlas.org/).
-The final result of this tutoprial, a dataset of approximately 8K high quality iCells from umbilical cord blood can be found [here](dropbox something....).
+The final result of this tutoprial, a dataset of approximately 8K high quality iCells from umbilical cord blood can be found [here].
 This example is different than the previous one in three ways: 1) the format of the input is .h5 instead of .mtx 2) the cell are unfiltered, so we have to filter the cells before running
 `iCells()` 3) We will use the conditions (namely, the patient IDs of each cell) to instruct `iCells()` not to pool cells of different patients. **I do not reccomand doing this, normally**: I do not see any problem if an iCell contains cells of, say, two patients. It just means that this iCell represents a cell type present in more than one patient. However, If somebody really needs to keep some conditions disjoint at the iCell level he/she can do as follows.
 
