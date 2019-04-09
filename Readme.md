@@ -14,7 +14,7 @@
 *bigSCale* is formed by three sub-tools which can be used either independently or in synergy. Each sub-tool has its own tutorial.<br />
 *bigSCale 2 Core* allows to cluster, phenotype and perform pseudo-time analysis. It's the main tool of bigSCale, published in [Iacono 2018](https://genome.cshlp.org/content/28/6/878).<br />
 *bigSCale 2 GRN* is the newest addition: it is the module to infer gene regulatory networks from single cell data. [Iacono 2019](https://www.biorxiv.org/content/10.1101/446104v1)<br />
-*bigSCale 2 iCells* allows to reduce the dimension of any given large dataset (also millions of cells, wothout any loss of information) so that it can be easily and quickly analyzed by any tool.The resulting dataset has less cells with higher quality, so it can be analyzed better. It DOES NOT require any external tool such as the loom framework. 
+*bigSCale 2 iCells* allows to reduce the dimension of any given large dataset (also millions of cells, without any loss of information) so that it can be easily and quickly analyzed by any tool.The resulting dataset has less cells with higher quality, so it can be analyzed better. It DOES NOT require any external tool such as the loom framework. 
 
 
 
@@ -471,8 +471,8 @@ Now we convert to .mtx format and, at the same time, we filter the cells. Here, 
 out=bigscale.convert.h5(input.file = "ica_cord_blood_h5.h5",output.file= "ica_cord_blood.mtx.tar.gz",counts.field = "GRCh38",filter.cells = 400)
 ```
 
-The output of the funtion contains the indices of the selected cells. Running `length(out$filtered.cells)` shows that we remained with 278367 cells.
-We now fetch the barocodes for these cells, which contain the patient IDs.
+The output of the funtion contains the indices of the selected cells. Running `length(out$filtered.cells)` shows that we remained with 278367 cells. 
+We now fetch the barcodes for these cells, which contain the patient IDs.
 
 ```{r}
 barcodes=rhdf5::h5read(file = "ica_cord_blood_h5.h5",name = "GRCh38/barcodes")
@@ -492,6 +492,6 @@ We can finally create the iCells, here I decide that I want to reduce to approxi
 ```{r}
 out=iCells(file.dir = "ica_cord_blood.mtx.tar.gz",target.cells = 8000,sample.conditions = IDs)
 ```
-out is a list containing all the necessary information, including the new expression counts and the mapping indeces of each iCell to the original cells. See the help of the function for more information. Below, a plot showing how the iCells, having an increased quality, improve the quality of result, as for example the segregation in the TSNE plot.
+out is a list containing all the necessary information, including the new expression counts and the mapping indeces of each iCell to the original cells. See the help of the function for more information. Gene names are not used for the iCell creation and can be recovered from the original file with `rhdf5::h5read(file = "ica_cord_blood_h5.h5",name = "GRCh38/gene_names")`. Below, a plot showing how the iCells, having an increased quality, improve the quality of result, as for example the segregation in the TSNE plot.
 
 ![](figures/10xUGM.png)
