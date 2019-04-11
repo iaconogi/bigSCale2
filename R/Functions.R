@@ -799,7 +799,7 @@ reps=round(tot.cells/100000)
 if(reps==0) reps=1
 if(reps>5) reps=5
 
-reps=1
+
 if (verbose==TRUE) print(sprintf('reps=%g',reps))
 
 driving.genes=c()
@@ -1525,8 +1525,12 @@ if (is.na(previous.output))
     
   print('PASSAGE 5) Clustering ...')
   if (clustering=="direct" | clustering=="recursive")
-    #mycl=sample(real.clusters)
-    mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size,fragment=TRUE)
+    {
+    if (clustering=="direct")
+      mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size,fragment=TRUE)
+    if (clustering=="recursive")
+      mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size)
+    }
   else
     {
     ODgenes=calculate.ODgenes(expr.data.norm)
@@ -3421,27 +3425,29 @@ id.map<-function(gene.list,all.genes){
 
 bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TRUE){
   
-
- # Generate the edges for the binning
- print('PASSAGE 1) Setting the bins for the expression data ....')
- sce=preProcess(sce)
-
-  # Calculate and store the normalized expression data ()
- # !!!!!!! ADD AUTOMATIC USE OF BATCH.CORRECTED IF PRESENT
- print('PASSAGE 2) Storing the Normalized data ....')
- sce = storeNormalized(sce,memory.save)
- 
- # Compute the empirical model of the noise
- print('PASSAGE 3) Computing the numerical model (can take from a few minutes to 30 mins) ....')
- sce=setModel(sce)
- 
- # Remove the bacth effect !! To be automated
- #sce=remove.batch.effect(sce, batches=sce$batches, conditions=sce$conditions)
- 
- # # Calculate and store the matrix with transformation = 4 (capped expression) for the signature plots
-  print('PASSAGE 4) Storing the Normalized-Transformed data (needed for some plots) ....')
- sce = storeTransformed(sce)
- 
+if ('counts' %in% assayNames(sce))
+  {
+   # Generate the edges for the binning
+   print('PASSAGE 1) Setting the bins for the expression data ....')
+   sce=preProcess(sce)
+  
+    # Calculate and store the normalized expression data ()
+   # !!!!!!! ADD AUTOMATIC USE OF BATCH.CORRECTED IF PRESENT
+   print('PASSAGE 2) Storing the Normalized data ....')
+   sce = storeNormalized(sce,memory.save)
+   
+   # Compute the empirical model of the noise
+   print('PASSAGE 3) Computing the numerical model (can take from a few minutes to 30 mins) ....')
+   sce=setModel(sce)
+   
+   # Remove the bacth effect !! To be automated
+   #sce=remove.batch.effect(sce, batches=sce$batches, conditions=sce$conditions)
+   
+   # # Calculate and store the matrix with transformation = 4 (capped expression) for the signature plots
+    print('PASSAGE 4) Storing the Normalized-Transformed data (needed for some plots) ....')
+   sce = storeTransformed(sce)
+}
+  
  # Compute the overdispersed genes
  print('PASSAGE 5) Computing Overdispersed genes ...')
  sce=setODgenes(sce)#favour='high'

@@ -130,12 +130,12 @@ setMethod(f="preProcess",
           definition=function(object)
           {
             
-            
             # Removing zeros rows
             print('Pre-processing) Removing null rows ')
             expr.data=as.matrix(counts(object))
             gene.names=rownames(object)
             exp.genes=which(Rfast::rowsums(expr.data)>0)
+            coldata.stored=colData(object)
             if ((nrow(expr.data)-length(exp.genes))>0)
             {
               print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
@@ -155,7 +155,7 @@ setMethod(f="preProcess",
             }      
             
             object@int_metadata$express.filtered=exp.genes
-            
+            object$colData=coldata.stored
             # Assign the size factors 
             print('Setting the size factors ....')
             print(class(counts(object)))
@@ -681,6 +681,9 @@ setMethod(f="storeNormalized",
           signature="SingleCellExperiment",
           definition=function(object, memory.save=TRUE) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
           {
+            
+
+            
             dummy=counts(object)
             counts(object)=c()
             gc()
@@ -856,7 +859,9 @@ setMethod(f="viewGeneBarPlot",
             {
             pos=grep(pattern = sprintf('\\b%s\\b',gene.list[k]),x=rownames(object))
             print(pos)
-            p[[k]]=bigSCale.barplot(ht = object@int_metadata$htree,clusters = getClusters(object),gene.expr = normcounts(object)[pos,],gene.name=gene.list[k])
+            pos=pos[1]
+            gene.name=rownames(object)[pos]
+            p[[k]]=bigSCale.barplot(ht = object@int_metadata$htree,clusters = getClusters(object),gene.expr = normcounts(object)[pos,],gene.name=gene.name)
           }
           if (length(gene.list)>1)
             gridExtra::grid.arrange(grobs=p)
@@ -893,26 +898,25 @@ setMethod(f="viewGeneViolin",
           signature="SingleCellExperiment",
           definition=function(object,gene.name,groups)
           {
-            p=list()
-            for ( k in 1:length(gene.name))
+          if (length(gene.name)>1)
+            stop('Violin plots expects only one gene at the time. Multiple gene names supperted by viewGeneBarPlot')
+
+          pos=grep(pattern = sprintf('\\b%s\\b',gene.name),x=rownames(object))
+          print(pos)
+          pos=pos[1]
+          gene.name=rownames(object)[pos]
+          
+          if (missing(groups))
               {
-              pos=grep(pattern = sprintf('\\b%s\\b',gene.name[k]),x=rownames(object))
-              print(pos)
+              p.out=bigSCale.violin(gene.expr = normcounts(object)[pos,],groups = getClusters(object),gene.name=gene.name)
+              groups = getClusters(object)
+              gene.expr = normcounts(object)[pos,]
               }
-            if (length(gene.name)>1)
-              print('Violin plots expects only one gene at the time. Multiple gene names supperted by viewGeneBarPlot')
-            else
-             if (missing(groups))
-                  {
-                  p.out=bigSCale.violin(gene.expr = normcounts(object)[pos,],groups = getClusters(object),gene.name=gene.name)
-                  groups = getClusters(object)
-                  gene.expr = normcounts(object)[pos,]
-                  }
-               else
-                  {
-                  p.out=bigSCale.violin(gene.expr = normcounts(object)[pos,],groups = groups,gene.name=gene.name)
-                  gene.expr = normcounts(object)[pos,]
-                  }
+          else
+              {
+              p.out=bigSCale.violin(gene.expr = normcounts(object)[pos,],groups = groups,gene.name=gene.name)
+              gene.expr = normcounts(object)[pos,]
+              }
             
           all.groups=sort(unique(groups))       
           avg.exp=c()
