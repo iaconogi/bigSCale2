@@ -27,7 +27,7 @@ setMethod(f="restoreData",
           {
             gc()
             normcounts(object)=Matrix::Matrix(bigmemory::as.matrix(object@int_metadata$expr.norm.big))
-            X_object@int_metadata$expr.norm.big
+            X=object@int_metadata$expr.norm.big
             rm(X)
             gc()
             
