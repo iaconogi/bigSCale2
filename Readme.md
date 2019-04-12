@@ -30,6 +30,7 @@ For help or questions contact me at **gio.iacono.work@gmail.com**
         - [Markers of specific clusters](#markers-of-specific-clusters)
         - [Barplot of selected genes](#barplot-of-selected-genes)
         - [Violin plot of a selected gene](#violin-plot-of-a-selected-gene)
+        - [t-SNE and UMAP plots](#t-sne-and-umap-plots)
         - [Browsing markers](#browsing-markers)
         - [Browsing signatures](#browsing-signatures)
         - [Pseudotime](#pseudotime)
@@ -139,6 +140,20 @@ viewGeneViolin(sce,'Aqp4')
 ``` 
 ![](figures/Aqp4.png)
 
+### t-SNE and UMAP plots
+
+```{r}
+viewReduced(sce) # to see t-SNE with clusters
+``` 
+![](figures/tsne_clusters.png)
+
+```{r}
+viewReduced(sce,color.by = 'Stmn2') # to see t-SNE with gene expression
+``` 
+![](figures/tsne_gene.png)
+
+
+If you want to color the cell according to some custom annotation you pass a `factor` variable in place of a gene name. If you want to visualize a UMAP plot first compute the UMAP data with `sce=storeUMAP(sce)` and then `viewReduced(sce,method = 'UMAP')`
 
 ### Browsing markers
 

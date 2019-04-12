@@ -553,7 +553,10 @@ setMethod(f="storeUMAP",
           signature="SingleCellExperiment",
           definition=function(object,...)
           {
-            umap.data=umap::umap(object@int_metadata$D)
+            if (class(object@int_metadata$D)=='big.matrix')
+              umap.data=umap::umap(bigmemory::as.matrix(object@int_metadata$D))  
+            else
+              umap.data=umap::umap(object@int_metadata$D)
             reducedDims(object)$UMAP=umap.data$layout
             rm(umap.data)
             gc()
@@ -682,7 +685,20 @@ setMethod(f="storeNormalized",
           definition=function(object, memory.save=TRUE) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
           {
             
-
+            if ('normcounts' %in% assayNames(object))
+            {
+              if (memory.save==TRUE)
+              {
+                print('Saving to swap the normalized expression matrix...')
+                dummy=bigmemory::as.big.matrix(as.matrix(normcounts(sce)))
+                object@int_metadata$expr.norm.big=dummy
+                normcounts(object)=c()
+                rm(dummy)
+                gc()
+              }
+              return(object)
+            }
+              
             
             dummy=counts(object)
             counts(object)=c()
@@ -699,6 +715,7 @@ setMethod(f="storeNormalized",
               print('Saving to swap the normalized expression matrix...')
               dummy=bigmemory::as.big.matrix(dummy)#,backingfile = 'normcounts.bin',backingpath = getwd())
               object@int_metadata$expr.norm.big=dummy
+              rm(dummy)
               }
               else
               normcounts(object)=Matrix::Matrix(dummy)  
@@ -732,6 +749,22 @@ setMethod(f="storeTransformed",
           signature="SingleCellExperiment",
           definition=function(object)
           {
+            
+            if ('transcounts' %in% assayNames(object))
+            {
+              if (!('normcounts' %in% assayNames(object)))
+              {
+                print('Saving to swap transcounts matrix...')
+                dummy=bigmemory::as.big.matrix(as.matrix(assay(object,'transcounts')))
+                object@int_metadata$transformed.big=dummy
+                assay(object,'transcounts')=c()
+                rm(dummy)
+                gc()
+              }
+              return(object)
+            }
+            
+            
             if ('normcounts' %in% assayNames(object))
               assay(object,'transcounts')=transform.matrix(normcounts(object),case = 4)
             else

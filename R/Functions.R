@@ -3446,7 +3446,14 @@ if ('counts' %in% assayNames(sce))
    # # Calculate and store the matrix with transformation = 4 (capped expression) for the signature plots
     print('PASSAGE 4) Storing the Normalized-Transformed data (needed for some plots) ....')
    sce = storeTransformed(sce)
-}
+  }
+  
+  else
+    
+  {
+    sce = storeNormalized(sce,memory.save)
+    sce = storeTransformed(sce)
+  }
   
  # Compute the overdispersed genes
  print('PASSAGE 5) Computing Overdispersed genes ...')
