@@ -1176,9 +1176,15 @@ return(max.all.inter)
 
 
 
-bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size,fragment=FALSE) {
+bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size,fragment=FALSE,create.distances=FALSE) {
+  
 
-create.distances=FALSE
+if (class(expr.data.norm)=='big.matrix')
+  expr.data.norm=bigmemory::as.matrix(expr.data.norm)
+else
+  expr.data.norm=as.matrix(expr.data.norm)
+gc()
+  
 
 num.samples=ncol(expr.data.norm)
   
@@ -1282,9 +1288,9 @@ if (length(bad.clusters)>0)
   warning(sprintf('Hidden %g clusters of %g cells total to be used: they are too small',length(bad.clusters),length(bad.cells)))
 }
 
-if (create.distances==TRUE) saveRDS(object = D.final,file = 'Distances_recursive.RDS')
-  
-return(mycl)
+if (create.distances==FALSE)
+  D.final=NA
+return(list(mycl=mycl,D=D.final))
 }
 
 
@@ -1348,8 +1354,8 @@ compare.centrality <- function(centralities,names.conditions)
     {
       result[,3]=(result[,1]-result[,2])
       ranking=rank(result[,3])
-      dummy=which(ranking>(length(ranking)/2))
-      ranking[dummy]=length(ranking)-ranking[dummy]
+      # dummy=which(ranking>(length(ranking)/2))
+      # ranking[dummy]=length(ranking)-ranking[dummy]
       result[,4]=ranking
     }
     
@@ -1497,6 +1503,7 @@ if (is.na(previous.output))
   # Part 1) Initial processing of the dataset  ************************************************************
   print('Pre-processing) Removing null rows ')
   exp.genes=which(Rfast::rowsums(expr.data)>0)
+  exp.gene.out<<-exp.genes
   if ((nrow(expr.data)-length(exp.genes))>0)
     print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
   expr.data=expr.data[exp.genes,]
@@ -1527,9 +1534,9 @@ if (is.na(previous.output))
   if (clustering=="direct" | clustering=="recursive")
     {
     if (clustering=="direct")
-      mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size,fragment=TRUE)
+      mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size,fragment=TRUE)$mycl
     if (clustering=="recursive")
-      mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size)
+      mycl=bigscale.recursive.clustering(expr.data.norm = expr.data.norm,model = model,edges = edges,lib.size = lib.size)$mycl
     }
   else
     {
@@ -1847,7 +1854,9 @@ bigSCale.signature.plot = function (ht,clusters,colData,data.matrix,signatures,s
   
   gc()
   
-
+  if (is.na(ht))
+  stop('You cannot run the ViewSignatures in combination with recursive clustering')
+  
   data.matrix=Matrix::as.matrix(data.matrix)
   
   # setting up and coloring the dendrogram
@@ -3410,6 +3419,7 @@ id.map<-function(gene.list,all.genes){
 #'   \item {\bold{fast}} {Fastest computational time, if you are in a hurry and you have lots of cell (>15K) you can use this}
 #' }
 #' @param memory.save enables a series of tricks to reduce RAM memory usage. Aware of one case (in linux) in which this option causes irreversible error.
+#' @param clustering setting \code{clustering='recursive'} forces the immediate and accurate detection of cell subtypes. 
 #' 
 #' @return  An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over
 #'
@@ -3423,7 +3433,7 @@ id.map<-function(gene.list,all.genes){
 #' @seealso    
 #' [ViewSignatures()]  
 
-bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TRUE){
+bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TRUE, clustering='normal'){
   
 if ('counts' %in% assayNames(sce))
   {
@@ -3455,20 +3465,32 @@ if ('counts' %in% assayNames(sce))
     sce = storeTransformed(sce)
   }
   
- # Compute the overdispersed genes
- print('PASSAGE 5) Computing Overdispersed genes ...')
- sce=setODgenes(sce)#favour='high'
+ if (clustering=='normal')
+    {
+    # Compute the overdispersed genes
+    print('PASSAGE 5) Computing Overdispersed genes ...')
+    sce=setODgenes(sce)#favour='high'
  
- # Compute cell to cell distances
- print('PASSAGE 6) Computing cell to cell distances ...')
- sce=setDistances(sce)
+    # Compute cell to cell distances
+    print('PASSAGE 6) Computing cell to cell distances ...')
+    sce=setDistances(sce)
+    
+     # Cluster the cells
+    print('PASSAGE 8) Computing the clusters ...')
+    sce=setClusters(sce)
+    }
+  else
+    {
+    print('PASSAGE 5-6) Going for recursive clustering')
+    sce=RecursiveClustering(sce)
+    }
+    
+
  
  print('PASSAGE 7) Computing TSNE ...')
  sce=storeTsne(sce)
  
- # Cluster the cells
- print('PASSAGE 8) Computing the clusters ...')
- sce=setClusters(sce)
+
  
   # Store the Pseudotime information and removes distances (not used anymore)
  if (compute.pseudo)
@@ -3480,11 +3502,11 @@ if ('counts' %in% assayNames(sce))
  
 # Use the gene Zscore information to organize them in groups of markers
  print('PASSAGE 10) Computing the markers (slowest part) ...')
- sce=computeMarkers(sce,speed.preset=speed.preset)
+ #sce=computeMarkers(sce,speed.preset=speed.preset)
  
  
  print('PASSAGE 11) Organizing the markers ...')
- sce=setMarkers(sce)
+ #sce=setMarkers(sce)
  
  if (memory.save==TRUE)
   { 

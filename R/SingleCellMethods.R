@@ -690,7 +690,7 @@ setMethod(f="storeNormalized",
               if (memory.save==TRUE)
               {
                 print('Saving to swap the normalized expression matrix...')
-                dummy=bigmemory::as.big.matrix(as.matrix(normcounts(sce)))
+                dummy=bigmemory::as.big.matrix(as.matrix(normcounts(object)))
                 object@int_metadata$expr.norm.big=dummy
                 normcounts(object)=c()
                 rm(dummy)
@@ -994,7 +994,7 @@ setMethod(f="storePseudo",
             else
               {
               G=igraph::graph_from_adjacency_matrix(adjmatrix = object@int_metadata$D,mode = 'undirected',weighted = TRUE)
-              object@int_metadata$D=c()
+              #object@int_metadata$D=c()
               gc()
               }
             
@@ -1092,3 +1092,53 @@ setMethod(f="ViewPseudo",
                 plot(object@int_metadata$minST,vertex.size=2,vertex.label=NA,vertex.color=color.by,layout=object@int_metadata$minST.layout)
           }
 )
+
+
+
+
+#' RecursiveClustering
+#'
+#' Clusters in an accurate recursive way to force immediate identification of cell-subtypes
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' 
+#' @return  object of the SingleCellExperiment class, with cell-cell distances stored inside
+#' 
+#' @examples
+#' sce=RecursiveClustering(sce)
+#' 
+#' @export
+
+setGeneric(name="RecursiveClustering",
+           def=function(object)
+           {
+             standardGeneric("RecursiveClustering")
+           }
+)
+
+setMethod(f="RecursiveClustering",
+          signature="SingleCellExperiment",
+          definition=function(object)
+          {
+            if ('normcounts' %in% assayNames(object))
+              {
+              out=bigscale.recursive.clustering(expr.data.norm = normcounts(object),model= object@int_metadata$model,edges = object@int_metadata$edges,lib.size = sizeFactors(object),fragment=FALSE,create.distances=TRUE)
+              object@int_metadata$D=out$D
+              }
+            else
+              {
+              out=bigscale.recursive.clustering(expr.data.norm = object@int_metadata$expr.norm.big,model= object@int_metadata$model,edges = object@int_metadata$edges,lib.size = sizeFactors(object),fragment=FALSE,create.distances=TRUE)
+              object@int_metadata$D=bigmemory::as.big.matrix(out$D)
+              }
+            gc()
+            object@int_colData$clusters=out$mycl
+            object@int_metadata$htree=NA
+            return(object)
+          }
+)
+
+
+
+
+
+
