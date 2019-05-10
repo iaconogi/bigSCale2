@@ -34,6 +34,7 @@ For help or questions contact me at **gio.iacono.work@gmail.com**
         - [Browsing markers](#browsing-markers)
         - [Browsing signatures](#browsing-signatures)
         - [Pseudotime](#pseudotime)
+        - [SuperClustering](#super-clustering)
 * [Advanced use](#advanced-use)
     
 
@@ -216,6 +217,13 @@ ViewPseudo(sce,color.by = 'clusters') # colors by clusters
 ViewPseudo(sce,color.by = 'Stmn3') # colors by a specific gene
 ```
 ![](figures/stmn3.png)
+
+### Super Clustering
+
+Super Clustering is a highly accurate recursive clustering which directly individautes the sub-types of a  dataset.
+It can be activated by using the option `clustering='recursive'` when running bigSCale.
+
+![](figures/superclu.png)
 
 ### **Advanced use**
 The `bigscale()` function which performs all the analysis at once is actually a wrapper for a series of sub-functions.
