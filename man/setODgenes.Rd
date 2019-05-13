@@ -4,7 +4,8 @@
 \alias{setODgenes}
 \title{setODgenes}
 \usage{
-setODgenes(object, min_ODscore = 2.33, use.exp = c(0, 1))
+setODgenes(object, min_ODscore = 2.33, use.exp = c(0, 1),
+  custom.genes = NA)
 }
 \arguments{
 \item{min_ODscore}{the treshold (Z-score) used to select highly variable genes. Increasing(decreasing) it results in less(more) highly variable genes.}
@@ -12,6 +13,8 @@ setODgenes(object, min_ODscore = 2.33, use.exp = c(0, 1))
 \item{use.exp}{A vactor of two elements \code{c(a,b)}: lower and upper quantile of expression for restricting the selection of highly variable genes. 
 Only the genes whose expression quantile is higher than \code{c(a)} and lower than \code{c(b)} will be used for highyl variable genes.
 For example, if your clustering is driven by lots of highly expressed genes (Ribosomal, Mitochondrial, ..) you can set something like \code{use.exp=c(0,0.9)} to discard them.}
+
+\item{custom.genes}{A character vector with a custo set of highly variable genes. Overrides any of the previous arguments}
 
 \item{sce}{object of the SingleCellExperiment class.}
 }
