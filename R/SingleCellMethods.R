@@ -433,15 +433,16 @@ setMethod(f="getDistances",
 #' Calculates the clusters of cell types.
 #' 
 #' @param sce object of the SingleCellExperiment class.
-#' @param method.treshold (optional) by default \code{method.treshold=0.5}. Increasing(decreasing) it results in bigSCale2 partitioning in more(less) clusters.
-#' @param plot.clusters (optional) by default \code{plot.clusters=FALSE}. If \code{plot.clusters=TRUE} plots a dendrogram of the clusters while making the analysis.
-#' @param cut.depth (optional) by default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100%).
-#' @param customClust (optional) a numeric vector containg your custom cluster assignment, overrides all previous settings. 
+#' @param customClust A numeric vector containg your custom cluster assignment, overrides all previous settings. 
+#' @param method.treshold By default \code{method.treshold=0.5}. Increasing(decreasing) it results in bigSCale2 partitioning in more(less) clusters.
+#' @param plot.clusters By default \code{plot.clusters=FALSE}. If \code{plot.clusters=TRUE} plots a dendrogram of the clusters while making the analysis.
+#' @param cut.depth By default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100 percent).
 #' 
-#' @return  object of the SingleCellExperiment class with the clusters stored inside.
+#' @return  SingleCellExperiment object with the clusters stored inside.
 #' 
 #' @examples
 #' sce=setClusters(sce)
+#' 
 #' @export
 
 setGeneric(name="setClusters",
@@ -486,7 +487,7 @@ setMethod(f="setClusters",
 #' @export
 
 setGeneric(name="getClusters",
-           def=function(object,customClust)
+           def=function(object)
            {
              standardGeneric("getClusters")
            }

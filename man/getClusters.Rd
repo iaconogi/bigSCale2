@@ -4,7 +4,7 @@
 \alias{getClusters}
 \title{getClusters}
 \usage{
-getClusters(object, customClust)
+getClusters(object)
 }
 \arguments{
 \item{sce}{object of the SingleCellExperiment class.}
