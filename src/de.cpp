@@ -23,7 +23,6 @@ NumericVector DE_Rcpp(NumericMatrix expr_norm_1,NumericMatrix expr_norm_2, Numer
     }
 
 
-
   for (i=0; i<sample_num_1; i++)//(i=0; i<1; i++) //(i=0; i<sample_num_1; i++)
     for (j=0; j<sample_num_2; j++) //(j=0; j<1; j++) //(j=0; j<sample_num_2; j++)
     {
@@ -40,7 +39,11 @@ NumericVector DE_Rcpp(NumericMatrix expr_norm_1,NumericMatrix expr_norm_2, Numer
         results_DE[k] = results_DE[k] + log_scores[(ind_A[B])*log_num+ind_A[A]];
         results_DE[k+gene_num] = results_DE[k+gene_num] + ((A>0) | (B>0));
         //merda=(int)((A+B)>0);
-        //printf("k=%d) col_a=%d,col_b=%d, A=%d B=%d, ind_A(A)=%d, ind_A(B)=%d, log_score=%f, merda=%d\n",k, i , j, A, B, ind_A[A], ind_A[B],log_scores[(ind_A[B])*log_num+ind_A[A]],merda);
+        //if ( (k==35859) & (results_DE[k+gene_num]>previous_value) )
+        //  {
+        //  previous_value=results_DE[k+gene_num];
+        //  printf("k=%d) col_a=%d,col_b=%d, A=%d B=%d, ind_A(A)=%d, ind_A(B)=%d, log_score=%f,results_DE[k+gene_num]=%f\n",k, i , j, A, B, ind_A[A], ind_A[B],log_scores[(ind_A[B])*log_num+ind_A[A]],results_DE[k+gene_num]);
+        //  }
       }
       //mexPrintf("col_a=%d,col_b=%d pos_A=%d pos_b=%d conta=%d log_score=%f\n",col_a,col_b,pos_a,pos_b,conta,log_score);
 

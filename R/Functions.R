@@ -1854,7 +1854,7 @@ bigSCale.signature.plot = function (ht,clusters,colData,data.matrix,signatures,s
   
   gc()
   
-  if (is.na(ht))
+  if (is.na(ht[1]))
   stop('You cannot run the ViewSignatures in combination with recursive clustering')
   
   data.matrix=Matrix::as.matrix(data.matrix)
@@ -2062,11 +2062,9 @@ tot.clusters=nrow(Mscores)
 
 Mlist = matrix(vector('list',tot.clusters*(tot.clusters-1)),tot.clusters,(tot.clusters-1))
 
-  if (tot.clusters<=2)
-    return(0)
   
-  else
-    for ( j in 1:tot.clusters)
+
+for ( j in 1:tot.clusters)
       {
       # concatenate the DEscores of the kth line
       block.M=c()
@@ -2077,15 +2075,34 @@ Mlist = matrix(vector('list',tot.clusters*(tot.clusters-1)),tot.clusters,(tot.cl
           block.M=cbind(block.M,-Mscores[[j,k]])
           block.F=cbind(block.F,-Fscores[[j,k]])
           }
-      result=Rfast::rowsums(block.M>cutoff)
-      block.M.sorted = Rfast::sort_mat(block.M,by.row = TRUE)
-      block.F.sorted = Rfast::sort_mat(block.F,by.row = TRUE)
+        
+      if (tot.clusters>2)
+        {
+        result=Rfast::rowsums(block.M>cutoff)
+        order.by.M=Rfast::rowOrder(block.M)
+        block.M.sorted=block.M # only to initialize the momory space
+        block.F.sorted=block.F # only to initialize the momory space
+        for (row.ix in 1:nrow(order.by.M))
+          {
+          block.M.sorted[row.ix,] = block.M[row.ix,order.by.M[row.ix,]]
+          block.F.sorted[row.ix,] = block.F[row.ix,order.by.M[row.ix,]]
+          }
+        }
+      else
+        {
+        result=as.numeric(block.M>cutoff)
+        block.M.sorted = block.M
+        block.F.sorted = block.F
+        }
       
       for (level in 1:(tot.clusters-1))
         {
         tresh.min=tot.clusters-level # So for example, let's have 5 clusters, then level 1 markers must be up-regulated 4 times
         detected.markers=which(result>=tresh.min)
-        temp=data.frame(GENE_NUM=detected.markers,GENE_NAME=gene.names[detected.markers],Z_SCORE=block.M.sorted[detected.markers,level],LOG_2=block.F.sorted[detected.markers,level] )
+        if (tot.clusters>2)
+          temp=data.frame(GENE_NUM=detected.markers,GENE_NAME=gene.names[detected.markers],Z_SCORE=block.M.sorted[detected.markers,level],LOG_2=block.F.sorted[detected.markers,level] )
+        else
+          temp=data.frame(GENE_NUM=detected.markers,GENE_NAME=gene.names[detected.markers],Z_SCORE=block.M.sorted[detected.markers],LOG_2=block.F.sorted[detected.markers] )
         ix=sort(temp$Z_SCORE, index.return=TRUE,decreasing = TRUE)$ix
         temp=temp[ix,]
         Mlist[[j,level]]=temp
@@ -2114,6 +2131,14 @@ for (k in 1:(tot.clusters-1))
       counts=counts+1 
     }
 
+
+if (is.vector(tot.scores) | ncol(tot.scores)==1)
+  {
+  signatures=NA
+  return(signatures)
+  }
+  
+
 # removing genes without significant DE
 expressed=which(Rfast::rowsums(abs(tot.scores)>cutoff)>0)
 
@@ -2121,7 +2146,10 @@ expressed=which(Rfast::rowsums(abs(tot.scores)>cutoff)>0)
 
 tot.scores=tot.scores[expressed,]
 gene.names=gene.names[expressed]
+
 scores=Rfast::rowsums(abs(tot.scores))/ncol(tot.scores)
+
+
 print(sprintf("Clustering %g genes differentially expressed...",nrow(tot.scores)))
 
 # clustering and creating the list of markers
@@ -2216,7 +2244,7 @@ get.log.scores = function (N_pct){
 
 
 
-bigscale.DE = function (expr.norm, N_pct, edges, lib.size, group1,group2,speed.preset='slow',plot.graphic=FALSE){
+bigscale.DE = function (expr.norm, N_pct, edges, lib.size, group1,group2,speed.preset='slow',plot.graphic=TRUE){
   
 #print('Starting DE')  
 gc.out=gc()
@@ -2365,6 +2393,7 @@ DE.scores.real=results.DE.real[1:num.genes]
 DE.counts.real=results.DE.real[(num.genes+1):length(results.DE.real)]
 
 
+
 # Calculating scores of random permutations
 #print('Rcpp computing randomly reshuffled DEs')
 idx=c(group1,group2)
@@ -2425,26 +2454,30 @@ if (any(is.na(yy))) # fixing the NA in the yy, when they coincide with the highe
   }
  
 
-treshold=min(400,(length(group1)*length(group2))/2) # values fitted below the 400 comparisons (eg.20cell*20cells) are considered noisy and replace with the lower value of next interval
+# I want at least 5 non zeros cell in one group if the other is full empty
+treshold=min( 5*max(length(group1),length(group2)),(length(group1)*length(group2))/2) # values fitted below the 400 comparisons (eg.20cell*20cells) are considered noisy and replace with the lower value of next interval
 if (sum(DE.counts.real>treshold)==0)
   error('Clusters too small for DE')
 yy[DE.counts.real<=treshold]=min(yy[DE.counts.real>treshold])
+
+
+# Setting to zero the scores of all gene with less than 5 cells.
+#DE.scores.real.out<<-DE.scores.real
+#DE.scores.wc.out<<-DE.scores.wc
+#yy.out<<-yy
 
 DE.scores=DE.scores.real/yy
 
 
 ## debugging
-# sa_inside <<- sa$x
-# movSD_inside <<- movSD 
-# yy_inside <<- yy 
-# DE.scores_inside <<- DE.scores
-# f_inside<<-f
-# DE.counts.real_inside<<-DE.counts.real
+
 
 # saving the DE scores
 DE.scores=rep(0,num.genes.initial)
 DE.scores[genes.expr]=DE.scores.real/yy
 DE.scores=abs(DE.scores)*sign(F.change)
+
+#DE.scores.out<<-DE.scores
 
 
 if (plot.graphic)
@@ -3437,23 +3470,15 @@ bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TR
   
 if ('counts' %in% assayNames(sce))
   {
-   # Generate the edges for the binning
    print('PASSAGE 1) Setting the bins for the expression data ....')
    sce=preProcess(sce)
   
-    # Calculate and store the normalized expression data ()
-   # !!!!!!! ADD AUTOMATIC USE OF BATCH.CORRECTED IF PRESENT
    print('PASSAGE 2) Storing the Normalized data ....')
    sce = storeNormalized(sce,memory.save)
-   
-   # Compute the empirical model of the noise
+
    print('PASSAGE 3) Computing the numerical model (can take from a few minutes to 30 mins) ....')
    sce=setModel(sce)
-   
-   # Remove the bacth effect !! To be automated
-   #sce=remove.batch.effect(sce, batches=sce$batches, conditions=sce$conditions)
-   
-   # # Calculate and store the matrix with transformation = 4 (capped expression) for the signature plots
+
     print('PASSAGE 4) Storing the Normalized-Transformed data (needed for some plots) ....')
    sce = storeTransformed(sce)
   }
@@ -3467,15 +3492,12 @@ if ('counts' %in% assayNames(sce))
   
  if (clustering=='normal')
     {
-    # Compute the overdispersed genes
     print('PASSAGE 5) Computing Overdispersed genes ...')
     sce=setODgenes(sce)#favour='high'
  
-    # Compute cell to cell distances
     print('PASSAGE 6) Computing cell to cell distances ...')
     sce=setDistances(sce)
     
-     # Cluster the cells
     print('PASSAGE 8) Computing the clusters ...')
     sce=setClusters(sce)
     }
@@ -3491,22 +3513,19 @@ if ('counts' %in% assayNames(sce))
  sce=storeTsne(sce)
  
 
- 
-  # Store the Pseudotime information and removes distances (not used anymore)
  if (compute.pseudo)
     {
     print('PASSAGE 9) Storing the pseudotime order ...')
     sce=storePseudo(sce)
     }
    
- 
-# Use the gene Zscore information to organize them in groups of markers
+
  print('PASSAGE 10) Computing the markers (slowest part) ...')
- #sce=computeMarkers(sce,speed.preset=speed.preset)
+ sce=computeMarkers(sce,speed.preset=speed.preset)
  
  
  print('PASSAGE 11) Organizing the markers ...')
- #sce=setMarkers(sce)
+ sce=setMarkers(sce)
  
  if (memory.save==TRUE)
   { 
@@ -3516,14 +3535,6 @@ if ('counts' %in% assayNames(sce))
 
  return(sce)
  
- # #viewStuff
- # ViewPseudo(sce,color.by)
- # viewGeneViolin(object = ,gene.name = ,groups = )
- # viewGeneBarPlot(object = ,gene.list = )
- # viewSignatures
- # viewModel
- # View(sce@int_metadata$Mlist.counts)
- # datatable(sce@int_metadata$Mlist[[5,1]])
 }
 
 
