@@ -2244,7 +2244,7 @@ get.log.scores = function (N_pct){
 
 
 
-bigscale.DE = function (expr.norm, N_pct, edges, lib.size, group1,group2,speed.preset='slow',plot.graphic=TRUE){
+bigscale.DE = function (expr.norm, N_pct, edges, lib.size, group1,group2,speed.preset='slow',plot.graphic=FALSE){
   
 #print('Starting DE')  
 gc.out=gc()
