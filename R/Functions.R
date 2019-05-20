@@ -1,3 +1,179 @@
+bigscale.classifier = function(expr.counts,gene.names,selected.genes,stop.at){
+  
+  
+if (length(selected.genes)<2 | length(selected.genes)>3)
+  stop('Accepts only 2 or 3 markers. Contact the developer if you more.')
+  
+pvalues=all.coexp(expr.counts = expr.counts,gene.names = gene.names,selected.genes = selected.genes)
+    
+if (is.na(stop.at))
+  tot.markers=20
+else
+  tot.markers=stop.at
+
+if (length(selected.genes)==2){
+
+ix=order(pvalues[1,])
+markers1=gene.names[setdiff(ix,which(pvalues[2,]<0.999999))]
+ix=order(pvalues[2,])
+markers2=gene.names[setdiff(ix,which(pvalues[1,]<0.999999))]
+
+final.counts=matrix(0,4,tot.markers)
+for (k in 1:tot.markers)
+{
+  
+  testing1=which(is.element(gene.names,markers1[1:k]))
+  testing2=which(is.element(gene.names,markers2[1:k]))
+  
+  if (k==1)
+  {
+    counts1=as.matrix(expr.counts[testing1,]>0)
+    counts2=as.matrix(expr.counts[testing2,]>0)
+  }    
+  else
+  {
+    counts1=Rfast::colsums(as.matrix(expr.counts[testing1,]>0))
+    counts2=Rfast::colsums(as.matrix(expr.counts[testing2,]>0)) 
+  }
+  
+  final.counts[,k]=c(sum(counts1>0 & counts2==0),sum(counts2>0 & counts1==0),sum(counts1==0 & counts2==0),sum(counts1>0 & counts2>0))
+  
+}
+
+plotting.text=c('none')
+for (k in 1:tot.markers)
+  plotting.text=c(plotting.text,sprintf('%s / %s',markers1[k],markers2[k]))
+  
+clusters=rep(0,length(counts1))
+clusters[which(counts1>0 & counts2==0)]=1
+clusters[which(counts2>0 & counts1==0)]=2
+clusters[which(counts1==0 & counts2==0)]=3
+clusters[which(counts1>0 & counts2>0)]=4
+
+
+final.counts=cbind(c(0,0,ncol(expr.counts),0),final.counts)/ncol(expr.counts)
+rownames(final.counts)=c(markers1[1],markers2[1],'others','doublets')
+final.counts=t(final.counts)
+final.counts=as.data.frame(final.counts)
+
+
+p <- plotly::plot_ly(data = final.counts, x = c(0:tot.markers), y = final.counts[,1], name = selected.genes[1], type='scatter', mode = 'lines+markers',text=plotting.text)
+p=plotly::add_trace(p,y = final.counts[,2], name = selected.genes[2], mode = 'lines+markers',text=plotting.text)
+p=plotly::add_trace(p,y = final.counts[,3], name = 'others', mode = 'lines+markers',text=plotting.text)
+p=plotly::add_trace(p,y = final.counts[,4], name = 'doublets', mode = 'lines+markers',text=plotting.text)
+p=plotly::layout(p,xaxis = list(title='Number of genes used'), yaxis = list(title='Percentage of cells'),title=sprintf('%g cells %s+, %g cells %s+, %g others and %g Doublets',sum(clusters==1),selected.genes[1],sum(clusters==2),selected.genes[2],sum(clusters==3),sum(clusters==4)))
+print(p)
+
+
+return(clusters)
+}
+
+
+if (length(selected.genes)==3){
+  
+  ix=order(pvalues[1,])
+  markers1=gene.names[setdiff(ix,which(pvalues[2,]<0.999999 | pvalues[3,]<0.999999))]
+  
+  ix=order(pvalues[2,])
+  markers2=gene.names[setdiff(ix,which(pvalues[1,]<0.999999 | pvalues[3,]<0.999999))]
+  
+  ix=order(pvalues[3,])
+  markers3=gene.names[setdiff(ix,which(pvalues[1,]<0.999999 | pvalues[2,]<0.999999))]
+  
+  final.counts=matrix(0,5,tot.markers)
+  for (k in 1:tot.markers)
+  {
+    
+    testing1=which(is.element(gene.names,markers1[1:k]))
+    testing2=which(is.element(gene.names,markers2[1:k]))
+    testing3=which(is.element(gene.names,markers3[1:k]))
+    
+    if (k==1)
+    {
+      counts1=as.matrix(expr.counts[testing1,]>0)
+      counts2=as.matrix(expr.counts[testing2,]>0)
+      counts3=as.matrix(expr.counts[testing3,]>0)
+    }    
+    else
+    {
+      counts1=Rfast::colsums(as.matrix(expr.counts[testing1,]>0))
+      counts2=Rfast::colsums(as.matrix(expr.counts[testing2,]>0)) 
+      counts3=Rfast::colsums(as.matrix(expr.counts[testing3,]>0)) 
+    }
+    
+    final.counts[1:4,k]=c(sum(counts1>0 & counts2==0 & counts3==0),sum(counts2>0 & counts1==0 & counts3==0),sum(counts3>0 & counts1==0 & counts2==0),sum(counts1==0 & counts2==0 & counts3==0))
+    final.counts[5,k]=ncol(expr.counts)-sum(final.counts[1:4,k])
+  }
+  
+  plotting.text=c('none')
+  for (k in 1:tot.markers)
+    plotting.text=c(plotting.text,sprintf('%s / %s / %s',markers1[k],markers2[k],markers3[k]))
+  
+  clusters=rep(0,length(counts1))
+  clusters[which(counts1>0 & counts2==0 & counts3==0)]=1
+  clusters[which(counts2>0 & counts1==0 & counts3==0)]=2
+  clusters[which(counts3>0 & counts1==0 & counts2==0)]=3
+  clusters[which(counts1==0 & counts2==0 & counts3==0)]=4
+  clusters[which(clusters==0)]=5
+  
+  
+  final.counts=cbind(c(0,0,0,ncol(expr.counts),0),final.counts)/ncol(expr.counts)
+  rownames(final.counts)=c(markers1[1],markers2[1],markers3[1],'others','doublets')
+  final.counts=t(final.counts)
+  final.counts=as.data.frame(final.counts)
+  
+  
+  p <- plotly::plot_ly(data = final.counts, x = c(0:tot.markers), y = final.counts[,1], name = selected.genes[1], type='scatter', mode = 'lines+markers',text=plotting.text)
+  p=plotly::add_trace(p,y = final.counts[,2], name = selected.genes[2], mode = 'lines+markers',text=plotting.text)
+  p=plotly::add_trace(p,y = final.counts[,3], name = selected.genes[3], mode = 'lines+markers',text=plotting.text)
+  p=plotly::add_trace(p,y = final.counts[,4], name = 'others', mode = 'lines+markers',text=plotting.text)
+  p=plotly::add_trace(p,y = final.counts[,5], name = 'doublets', mode = 'lines+markers',text=plotting.text)
+  p=plotly::layout(p,xaxis = list(title='Number of genes used'), yaxis = list(title='Percentage of cells'),title=sprintf('%g cells %s+, %g cells %s+, %g cells %s+, %g others and %g Doublets',sum(clusters==1),selected.genes[1],sum(clusters==2),selected.genes[2],sum(clusters==3),selected.genes[3],sum(clusters==4),sum(clusters==5)))
+  print(p)
+  
+  
+  return(clusters)
+}
+
+}
+
+
+
+
+all.coexp = function (expr.counts,gene.names,selected.genes){
+  
+  expr.counts=as.matrix(expr.counts)
+  pop.size=ncol(expr.counts)
+  pvalues=matrix(NA,length(selected.genes),length(gene.names))
+  #fe=pvalues
+  #counts=pvalues
+
+  for (h in 1:length(selected.genes))
+  {
+    # v1=expr.counts[which(gene.names==selected.genes[h]),]
+    # pop.hits=sum(v1>0)
+    # print(sprintf('Computing p-values for gene %s, it should take few minutes ...',selected.genes[h]))
+    # for (k in 1:length(gene.names))  
+    # {
+    #   samp.size=sum(expr.counts[k,]>0)
+    #   samp.hits=sum(v1>0 & expr.counts[k,]>0)
+    #   pvalues[h,k]=phyper(samp.hits, pop.hits, pop.size-pop.hits, samp.size,lower.tail = FALSE)+dhyper(samp.hits, pop.hits, pop.size-pop.hits, samp.size)
+    #   #fe[h,k]=(samp.hits/samp.size)/(pop.hits/pop.size)
+    #   #counts[h,k]=samp.hits
+    # }
+    print(sprintf('Computing p-values for gene %s',selected.genes[h]))
+    
+    v1=expr.counts[which(gene.names==selected.genes[h]),]
+    
+    samp.size=Rfast::rowsums(expr.counts>0)
+    samp.hits=Rfast::rowsums(expr.counts[,which(v1>0)]>0)
+    pop.hits=rep(sum(v1>0),nrow(expr.counts))
+    pvalues[h,]=phyper(samp.hits, pop.hits, pop.size-pop.hits, samp.size,lower.tail = FALSE)+dhyper(samp.hits, pop.hits, pop.size-pop.hits, samp.size)
+  }
+  return(pvalues)
+}
+
+
 
 #' deconvolute
 #'
@@ -2021,7 +2197,6 @@ bigSCale.tsne.plot = function (tsne.data,color.by,fig.title,colorbar.title){
    Expression=color.by
    p=interactive.plot(x=tsne.data[,1],y=tsne.data[,2],marker=list(color=~Expression,colorbar=list(title=colorbar.title),colorscale=custom.colorscale,reversescale =F),text=cell.names)
    p=plotly::layout(p,title = sprintf("%s",fig.title),xaxis = list(zeroline = FALSE),yaxis = list(zeroline = FALSE))#,cauto=F,cmin=0,cmax=5))   #cauto=F,cmin=0,cmax=1,
-   print(p)
   }
 
   gc()
@@ -2260,6 +2435,8 @@ else
   expr.norm=as.matrix(expr.norm[,c(group1,group2)])
 
 
+
+
 group1=c(1:length(group1))
 group2=c((length(group1)+1):(length(group1)+length(group2)))
 
@@ -2289,6 +2466,8 @@ dummy=rep(0,num.genes)
 DE.scores.wc=rep(0,num.genes.initial)
 info.groups=c(rep(TRUE,length(group1)),rep(FALSE,length(group2)))
 input.matrix=expr.norm[,c(group1,group2)]
+
+
 #print(sprintf('Launching the Wilcoxon, %g VS %g cells',length(group1),length(group2)))
 dummy=BioQC::wmwTest(t(input.matrix), info.groups , valType = 'p.two.sided' )
 # fixing the zeroes in wilcoxon
@@ -2467,8 +2646,6 @@ yy[DE.counts.real<=treshold]=min(yy[DE.counts.real>treshold])
 #yy.out<<-yy
 
 DE.scores=DE.scores.real/yy
-
-
 ## debugging
 
 
@@ -2499,7 +2676,6 @@ if (plot.graphic)
 factor1=max(DE.scores.wc[!is.infinite(DE.scores.wc)])/max(DE.scores[!is.na(DE.scores)])
 factor2=min(DE.scores.wc[!is.infinite(DE.scores.wc)])/min(DE.scores[!is.na(DE.scores)])
 factor=mean(c(factor1,factor2))
-
 
 if (is.infinite(factor) | factor<0)
   stop('Problems with the factor')
@@ -2624,7 +2800,7 @@ return(list(clusters=clusters,ht=ht))
 }
 
 
-compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size){
+compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality){
   
   # normalize expression data for library size without scaling to the overall average depth
   if (class(expr.norm)=='big.matrix')
@@ -2632,6 +2808,25 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   else
     expr.driving.norm=as.matrix(expr.norm[driving.genes,])/mean(lib.size)
   gc()
+  
+  print(sprintf('Proceeding to calculated cell-cell distances with %s modality',modality))
+  
+  if (modality=='alternative')
+    {
+    print("Calculating normalized-transformed matrix ...")
+    #expr.driving.norm.out<<-expr.driving.norm
+    # removing genes never expressed
+    #cacca=Rfast::rowsums(is.na(expr.norm.transformed))
+    expr.norm.transformed = transform.matrix(expr.driving.norm , 2 )
+    gc()
+    print("Calculating Pearson correlations ...")
+    D=1-Rfast::cora(expr.norm.transformed)
+    rm(expr.norm.transformed)
+    gc()
+    return(D)
+    }
+  
+  
   
   if (!hasArg(genes.discarded)) genes.discarded =c()
 

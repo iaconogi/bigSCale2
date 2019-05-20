@@ -375,7 +375,7 @@ setMethod(f="remove.batch.effect",
 #' @export
 
 setGeneric(name="setDistances",
-           def=function(object)
+           def=function(object,modality='classic')
            {
              standardGeneric("setDistances")
            }
@@ -383,12 +383,12 @@ setGeneric(name="setDistances",
 
 setMethod(f="setDistances",
           signature="SingleCellExperiment",
-          definition=function(object)
+          definition=function(object,modality='classic')
           {
             if ('normcounts' %in% assayNames(object))
-              object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object))
+              object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality)
             else
-              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)))#, backingfile = 'D.bin',backingpath = getwd())
+              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)),modality=modality)#, backingfile = 'D.bin',backingpath = getwd())
             
             gc()
             #validObject(object)
@@ -432,21 +432,23 @@ setMethod(f="getDistances",
 #'
 #' Calculates the clusters of cell types.
 #' 
-#' @param sce object of the SingleCellExperiment class.
+#' @param object object of the SingleCellExperiment class.
 #' @param customClust A numeric vector containg your custom cluster assignment, overrides all previous settings. 
 #' @param method.treshold By default \code{method.treshold=0.5}. Increasing(decreasing) it results in bigSCale2 partitioning in more(less) clusters.
 #' @param plot.clusters By default \code{plot.clusters=FALSE}. If \code{plot.clusters=TRUE} plots a dendrogram of the clusters while making the analysis.
 #' @param cut.depth By default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100 percent).
+#' @param classifier New option which allows to cluster the cells according to two genes given as input.
+#' @param num.classifiers How many markers should be used for each group. Check online tutorial for further help https://github.com/iaconogi/bigSCale2#classifier
 #' 
 #' @return  SingleCellExperiment object with the clusters stored inside.
 #' 
 #' @examples
 #' sce=setClusters(sce)
-#' 
+#' sce=setClusters(sce,classifier='Cd4','Cd8')
 #' @export
 
 setGeneric(name="setClusters",
-           def=function(object,customClust,...)
+           def=function(object,customClust=NA,classifier=NA,num.classifiers=NA,...)
            {
              standardGeneric("setClusters")
            }
@@ -454,20 +456,25 @@ setGeneric(name="setClusters",
 
 setMethod(f="setClusters",
           signature="SingleCellExperiment",
-          definition=function(object,customClust,...)
+          definition=function(object,customClust=NA,classifier=NA,num.classifiers=NA,...)
           {
-            if (missing(customClust))
+            if (is.na(customClust[1]) & is.na(classifier[1]))
               {
               print("Calculating the clusters")
               out=bigscale.cluster(object@int_metadata$D,...)
               object@int_colData$clusters=out$clusters
               object@int_metadata$htree=out$ht
               }
-            else
+            if (length(customClust)>1)
               {
               print("Setting custom defined clusters") 
               object@int_colData$clusters=customClust
               }
+            if (length(classifier)>1)
+            {
+              print(sprintf("Using the classifier ...s")) 
+              object@int_colData$clusters=bigscale.classifier(expr.counts=normcounts(object),gene.names=rownames(object),selected.genes=classifier,stop.at=num.classifiers)
+            }      
             gc()
             #validObject(object)
             return(object)
@@ -1150,6 +1157,49 @@ setMethod(f="RecursiveClustering",
 
 
 
+#' Differential Expression
+#'
+#' Performs DE over two groups of cells
+#'
+#' @param object object of the SingleCellExperiment class.
+#' @param group1 a numeric vector with the indices of cells of group1
+#' @param group2 a numeric vector with the indices of cells of group2
+#' @param speed.preset by default \code{speed.preset='slow'}. It regulates the speed vs. accuracy in the computation of the marker and differentially expressed genes.
+#' \itemize{
+#'   \item {\bold{slow}} { Reccomended for most datasets, provides best marker accuracy but slowest computational time.} 
+#'   \item {\bold{normal}} {A balance between marker accuracy and computational time. }
+#'   \item {\bold{fast}} {Fastest computational time, if you are in a hurry and you have lots of cell (>15K) you can use this}
+#' }
+#' 
+#' @examples
+#' DE=bigscale.DE(sce,group1=c(1:100),group1=c(101:200))
+#' @export
+#' 
+#' 
 
 
+setGeneric(name="bigscaleDE",
+           def=function(object,group1,group2,speed.preset='slow')
+           {
+             standardGeneric("bigscaleDE")
+           }
+)
 
+setMethod(f="bigscaleDE",
+          signature="SingleCellExperiment",
+          definition=function(object,group1,group2,speed.preset='slow')
+          {
+            out=bigscale.DE(expr.norm = normcounts(object), N_pct = object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object), group1 = group1,group2 = group2,speed.preset = speed.preset)
+            out=as.data.frame(out)
+            gene.names=rownames(object)
+            if(length(unique(gene.names)) < length(gene.names))
+            {
+              print('You have some duplicated gene names. I will append a number to every gene name')
+              for (k in 1:length(gene.names))
+                gene.names[k]=paste(gene.names[k],k)
+            }
+            rownames(out)=gene.names
+            colnames(out)=c('Z-score','Fold-change')
+            return(out)
+          }
+)

@@ -35,6 +35,7 @@ For help or questions contact me at **gio.iacono.work@gmail.com**
         - [Browsing signatures](#browsing-signatures)
         - [Pseudotime](#pseudotime)
         - [SuperClustering](#super-clustering)
+        - [Classifier](#classifier)
 * [Advanced use](#advanced-use)
     
 
@@ -224,6 +225,20 @@ Super Clustering is a highly accurate recursive clustering which directly indivi
 It can be activated by using the option `clustering='recursive'` when running bigSCale.
 
 ![](figures/superclu.png)
+
+
+### Classifier
+I recently came along a blood dataset in which it was impossible to clearly separate Cd4+ and Cd8+ T-cells. More in general, it can happen that two biologially distinct populations of cells with known, mutuallye exclusive, markers are not separated in the T-sne plot. In these cases you can use the new "classifier" featured introduced in bigSCale2.
+At the moment the classifier requires two markers of the two cell types you want to separate. For example, if you want to separate Cd4+ and Cd8+ T-cells you should run.
+
+```{r}
+sce=setClusters(sce,classifier = c('Cd4','Cd8a'))
+```
+This code assigns new clusters to your dataset. Specifically, it will force the creation of 4 clusters (Cd4+,Cd8+,others(double negatives), and doublets (double postivies)).
+The tool works by selecting genes co-expressed with your markers and using them to tame the problem of dropouts. The output graph shows how the size of the 4 clusters changes with the increase of the markers used. Passing the cursor over each dot displays which markers have been added in each step. The first markers used in step1 are most of the times the input markers, in this case Cd4 and Cd8. By default, the tools add up to 20 markers (20+20). This number can be changed with the parameter `num.classifiers`. This tool is still a prototype, so if you encounter problems please do not hesitate to contact me at gio.iacono.work@gmail.com or by opening an issue in GitHub.
+
+![](figures/classifier.png)
+
 
 ### **Advanced use**
 The `bigscale()` function which performs all the analysis at once is actually a wrapper for a series of sub-functions.

@@ -4,12 +4,17 @@
 \alias{setClusters}
 \title{setClusters}
 \usage{
-setClusters(object, customClust, ...)
+setClusters(object, customClust = NA, classifier = NA,
+  num.classifiers = NA, ...)
 }
 \arguments{
+\item{object}{object of the SingleCellExperiment class.}
+
 \item{customClust}{A numeric vector containg your custom cluster assignment, overrides all previous settings.}
 
-\item{sce}{object of the SingleCellExperiment class.}
+\item{classifier}{New option which allows to cluster the cells according to two genes given as input.}
+
+\item{num.classifiers}{How many markers should be used for each group. Check online tutorial for further help https://github.com/iaconogi/bigSCale2#classifier}
 
 \item{method.treshold}{By default \code{method.treshold=0.5}. Increasing(decreasing) it results in bigSCale2 partitioning in more(less) clusters.}
 
@@ -25,5 +30,5 @@ Calculates the clusters of cell types.
 }
 \examples{
 sce=setClusters(sce)
-
+sce=setClusters(sce,classifier='Cd4','Cd8')
 }

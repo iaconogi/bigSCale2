@@ -4,7 +4,7 @@
 \alias{setDistances}
 \title{setDistances}
 \usage{
-setDistances(object)
+setDistances(object, modality = "classic")
 }
 \arguments{
 \item{sce}{object of the SingleCellExperiment class.}
