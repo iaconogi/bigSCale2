@@ -229,7 +229,7 @@ It can be activated by using the option `clustering='recursive'` when running bi
 
 ### Classifier
 I recently came along a blood dataset in which it was impossible to clearly separate Cd4+ and Cd8+ T-cells. More in general, it can happen that two biologially distinct populations of cells with known, mutuallye exclusive, markers are not separated in the T-sne plot. In these cases you can use the new "classifier" featured introduced in bigSCale2.
-At the moment the classifier requires two markers of the two cell types you want to separate. For example, if you want to separate Cd4+ and Cd8+ T-cells you should run.
+At the moment the classifier requires two markers of the two cell types you want to separate (works up to three). For example, if you want to separate Cd4+ and Cd8+ T-cells you should run.
 
 ```{r}
 sce=setClusters(sce,classifier = c('Cd4','Cd8a'))
