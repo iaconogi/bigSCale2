@@ -388,7 +388,7 @@ setMethod(f="setDistances",
             if ('normcounts' %in% assayNames(object))
               object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality)
             else
-              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object)),modality=modality)#, backingfile = 'D.bin',backingpath = getwd())
+              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality))#, backingfile = 'D.bin',backingpath = getwd())
             
             gc()
             #validObject(object)
