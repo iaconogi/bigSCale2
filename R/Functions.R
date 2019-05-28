@@ -2197,7 +2197,8 @@ bigSCale.tsne.plot = function (tsne.data,color.by,fig.title,colorbar.title){
    Expression=color.by
    p=interactive.plot(x=tsne.data[,1],y=tsne.data[,2],marker=list(color=~Expression,colorbar=list(title=colorbar.title),colorscale=custom.colorscale,reversescale =F),text=cell.names)
    p=plotly::layout(p,title = sprintf("%s",fig.title),xaxis = list(zeroline = FALSE),yaxis = list(zeroline = FALSE))#,cauto=F,cmin=0,cmax=5))   #cauto=F,cmin=0,cmax=1,
-  }
+    print(p)
+   }
 
   gc()
 }
