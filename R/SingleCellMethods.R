@@ -368,6 +368,7 @@ setMethod(f="remove.batch.effect",
 #' Computes cell to cell distances using the highly variable genes.
 #' 
 #' @param sce object of the SingleCellExperiment class.
+#' @param modality If \code{classic} uses the default bigSCale algorythm. If \code{alternative}, uses an alternative approach which gives a different clustering/TNSE in case you are not satisfied with the default one.
 #' @return  object of the SingleCellExperiment class, with cell to cell distances stored inside (in the virtual memory)
 #' 
 #' @examples

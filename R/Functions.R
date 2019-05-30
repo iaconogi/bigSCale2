@@ -291,7 +291,7 @@ extract.cells = function(input.mex,output.mex,cells,chuncks=50000){
 
 merge.chunks = function(verbose){
   
-  file.names=list.files(pattern = "Temp")
+  file.names=list.files(pattern = "Temp_")
   if (verbose==TRUE) print(sprintf('Detected %g chunks to merge',length(file.names)))
   
   nc=0
@@ -374,7 +374,14 @@ chunks=50000
 current.cell=1
 
 indices = h5read(input.file,paste(counts.field, "/indices",sep=""))
-indptr = h5read(input.file,paste(counts.field, "/indptr",sep=""))
+if (length(indices)>2000000000)
+  {
+  print('We have a very large dataset, storing inptr as double instead of integer')
+  indptr = h5read(input.file,paste(counts.field, "/indptr",sep=""),bit64conversion='double')
+  }
+else
+  indptr = h5read(input.file,paste(counts.field, "/indptr",sep=""))
+
 data = h5read(input.file,paste(counts.field, "/data",sep=""))
 det.genes=diff(indptr)
 
@@ -404,7 +411,7 @@ while (TRUE)
   
   j_local=(rep(0,length(i_local)))
   indptr_local=indptr[current.cell:(current.cell+chunks)]
-  indptr_local=indptr_local-indptr_local[1]
+  indptr_local=as.integer(indptr_local-indptr_local[1])
   for (k in 1:chunks)
     j_local[(indptr_local[k]+1):indptr_local[k+1]]=k
   j_local=as.integer(j_local)
