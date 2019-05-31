@@ -2808,7 +2808,7 @@ return(list(clusters=clusters,ht=ht))
 }
 
 
-compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality){
+compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality='classic'){
   
   # normalize expression data for library size without scaling to the overall average depth
   if (class(expr.norm)=='big.matrix')
