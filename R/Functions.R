@@ -488,7 +488,7 @@ bigscale.readMM <- function(file,max.vals,skip.vals=0,size.only=FALSE,current.co
   
   nr <- scan1(integer(), comment.char = "%")
   nc <- scan1(integer())
-  nz <- scan1(integer())
+  nz <- scan1(double())
   
   if (size.only) return(c(nc,nr,nz))
   
