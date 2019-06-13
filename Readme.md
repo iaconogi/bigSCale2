@@ -9,6 +9,9 @@
 *  *bigSCale2* allows to infer the gene regulatory networks for any single cell dataset.
 *  *bigSCale2* allows to compress large datasets of any size into a smaller datasets of higher quality, without loss of information. One millions cells are too many to be analyzed by your favourite tool ? Reduce them to a dataset with less cells of increased quality and go for it!
 
+**Citatations
+If you used bigSCale2 please cite out papers [Iacono 2018](https://genome.cshlp.org/content/28/6/878) and [Iacono 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1713-4).**
+
 **Quick Start**
 
 *bigSCale* is formed by three sub-tools which can be used either independently or in synergy. Each sub-tool has its own tutorial.<br />
