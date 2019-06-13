@@ -4,9 +4,11 @@
 \alias{setDistances}
 \title{setDistances}
 \usage{
-setDistances(object, modality = "classic")
+setDistances(object, modality = "bigscale")
 }
 \arguments{
+\item{modality}{If \code{classic} uses the default bigSCale algorythm. If \code{alternative}, uses an alternative approach which gives a different clustering/TNSE in case you are not satisfied with the default one.}
+
 \item{sce}{object of the SingleCellExperiment class.}
 }
 \value{

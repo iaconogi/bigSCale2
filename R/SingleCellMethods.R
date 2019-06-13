@@ -376,7 +376,7 @@ setMethod(f="remove.batch.effect",
 #' @export
 
 setGeneric(name="setDistances",
-           def=function(object,modality='classic')
+           def=function(object,modality='bigscale')
            {
              standardGeneric("setDistances")
            }
@@ -384,7 +384,7 @@ setGeneric(name="setDistances",
 
 setMethod(f="setDistances",
           signature="SingleCellExperiment",
-          definition=function(object,modality='classic')
+          definition=function(object,modality='bigscale')
           {
             if ('normcounts' %in% assayNames(object))
               object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality)
@@ -438,7 +438,7 @@ setMethod(f="getDistances",
 #' @param method.treshold By default \code{method.treshold=0.5}. Increasing(decreasing) it results in bigSCale2 partitioning in more(less) clusters.
 #' @param plot.clusters By default \code{plot.clusters=FALSE}. If \code{plot.clusters=TRUE} plots a dendrogram of the clusters while making the analysis.
 #' @param cut.depth By default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100 percent).
-#' @param classifier New option which allows to cluster the cells according to two genes given as input.
+#' @param classifier New option which allows to cluster the cells according to two or three genes given as input.
 #' @param num.classifiers How many markers should be used for each group. Check online tutorial for further help https://github.com/iaconogi/bigSCale2#classifier
 #' 
 #' @return  SingleCellExperiment object with the clusters stored inside.
@@ -471,7 +471,7 @@ setMethod(f="setClusters",
               print("Setting custom defined clusters") 
               object@int_colData$clusters=customClust
               }
-            if (length(classifier)>1)
+            if (is.na(classifier[1])==0 )
             {
               print(sprintf("Using the classifier ...s")) 
               object@int_colData$clusters=bigscale.classifier(expr.counts=normcounts(object),gene.names=rownames(object),selected.genes=classifier,stop.at=num.classifiers)
@@ -1039,12 +1039,16 @@ setMethod(f="storePseudo",
             print('Computing the layout ...')
 
             #correcting for outliers in the weights
-            #weights.corrected=E(object@int_metadata$minST)$weight
-            #outliers=which(weights.corrected>quantile(weights.corrected,0.99))
-            #weights.corrected[outliers]=quantile(weights.corrected,0.99)
-            #object@int_metadata$minST.layout=layout_with_kk(graph = object@int_metadata$minST,weights = weights.corrected)
+            weights.corrected=igraph::E(object@int_metadata$minST)$weight
+            outliers=which(weights.corrected>quantile(weights.corrected,0.99))
+            weights.corrected[outliers]=quantile(weights.corrected,0.99)
+            
+            
+            layout=igraph::layout_with_fr(graph = object@int_metadata$minST,weights = 1/weights.corrected,niter = 50000)
+            layout=igraph::layout_with_kk(graph = object@int_metadata$minST,weights = NA,coords = layout)
+            object@int_metadata$minST.layout=layout
 
-            object@int_metadata$minST.layout=igraph::layout_with_kk(graph = object@int_metadata$minST,weights = NA)
+            #object@int_metadata$minST.layout=igraph::layout_with_kk(graph = object@int_metadata$minST,weights = NA)
             print('Computing the pseudotime ...')
             object$pseudotime=compute.pseudotime(object@int_metadata$minST)
             

@@ -12,7 +12,7 @@ setClusters(object, customClust = NA, classifier = NA,
 
 \item{customClust}{A numeric vector containg your custom cluster assignment, overrides all previous settings.}
 
-\item{classifier}{New option which allows to cluster the cells according to two genes given as input.}
+\item{classifier}{New option which allows to cluster the cells according to two or three genes given as input.}
 
 \item{num.classifiers}{How many markers should be used for each group. Check online tutorial for further help https://github.com/iaconogi/bigSCale2#classifier}
 

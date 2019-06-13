@@ -1,8 +1,34 @@
+jaccard_dist_text2vec_04 <- function(x, y = NULL, format = 'dgCMatrix') {
+  if (!inherits(x, 'sparseMatrix'))
+    stop("at the moment jaccard distance defined only for sparse matrices")
+  # union x
+  rs_x = Matrix::rowSums(x)
+  if (is.null(y)) {
+    # intersect x
+    RESULT = Matrix::tcrossprod(x)
+    rs_y = rs_x
+  } else {
+    if (!inherits(y, 'sparseMatrix'))
+      stop("at the moment jaccard distance defined only for sparse matrices")
+    # intersect x y
+    RESULT = Matrix::tcrossprod(x, y)
+    # union y
+    rs_y = Matrix::rowSums(y)
+  }
+  RESULT = as(RESULT, 'dgTMatrix')
+  # add 1 to indices because of zero-based indices in sparse matrices
+  # 1 - (...) because we calculate distance, not similarity
+  RESULT@x <- 1 - RESULT@x / (rs_x[RESULT@i + 1L] + rs_y[RESULT@j + 1L] - RESULT@x)
+  if (!inherits(RESULT, format))
+    RESULT = as(RESULT, format)
+  RESULT
+}
+
 bigscale.classifier = function(expr.counts,gene.names,selected.genes,stop.at){
   
   
-if (length(selected.genes)<2 | length(selected.genes)>3)
-  stop('Accepts only 2 or 3 markers. Contact the developer if you more.')
+if (length(selected.genes)==1 | length(selected.genes)>3)
+  stop('Accepts only two or three markers. Contact the developer if you more.')
   
 pvalues=all.coexp(expr.counts = expr.counts,gene.names = gene.names,selected.genes = selected.genes)
     
@@ -10,6 +36,7 @@ if (is.na(stop.at))
   tot.markers=20
 else
   tot.markers=stop.at
+
 
 if (length(selected.genes)==2){
 
@@ -147,6 +174,7 @@ all.coexp = function (expr.counts,gene.names,selected.genes){
   pvalues=matrix(NA,length(selected.genes),length(gene.names))
   #fe=pvalues
   #counts=pvalues
+
 
   for (h in 1:length(selected.genes))
   {
@@ -910,8 +938,14 @@ if (estimated.pooling>5 & estimated.pooling<=25)
   
   pooling1=ceiling(number)-1
   result1=iCells.simple(file.dir = file.dir,pooling.factor=pooling1,sample.conditions = sample.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)           
-
+  if (pooling1>2)
+   {
+   preproc.cells=round(preproc.cells/(pooling1-1))
+   icells.chuncks=round(icells.chuncks/(pooling1-1)) 
+  }
+  
   pooling2=floor(number)-1
+  print(sprintf('Reducing preproc.cells to %g and icells.chuncks to %g'))
   result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)
   
   
@@ -933,9 +967,12 @@ if (estimated.pooling>25)
   pooling3=min(floor(number)-1,4)
   
   result1=iCells.simple(file.dir = file.dir,pooling.factor=pooling1,sample.conditions = sample.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)                  
-  
+  if (pooling1>2)
+  {
+    preproc.cells=round(preproc.cells/(pooling1-1))
+    icells.chuncks=round(icells.chuncks/(pooling1-1)) 
+  }
   result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore)
-  
   result3=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling3,sample.conditions = result2$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore)
   
   
@@ -2808,7 +2845,7 @@ return(list(clusters=clusters,ht=ht))
 }
 
 
-compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality='classic'){
+compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality='bigscale'){
   
   # normalize expression data for library size without scaling to the overall average depth
   if (class(expr.norm)=='big.matrix')
@@ -2819,7 +2856,7 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   
   print(sprintf('Proceeding to calculated cell-cell distances with %s modality',modality))
   
-  if (modality=='alternative')
+  if (modality=='correlation')
     {
     print("Calculating normalized-transformed matrix ...")
     #expr.driving.norm.out<<-expr.driving.norm
@@ -2832,8 +2869,16 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
     rm(expr.norm.transformed)
     gc()
     return(D)
-    }
+  }
   
+  if (modality=='jaccard')
+  {
+    print("Calculating Jaccard distances ...")
+    expr.driving.norm.out<<-expr.driving.norm
+    D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::Matrix(t(expr.driving.norm>0))))
+    D=(D^2)
+    return(D)
+  }  
   
   
   if (!hasArg(genes.discarded)) genes.discarded =c()
