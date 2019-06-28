@@ -4,9 +4,11 @@
 \alias{RecursiveClustering}
 \title{RecursiveClustering}
 \usage{
-RecursiveClustering(object)
+RecursiveClustering(object, modality = "bigscale", fragment = FALSE)
 }
 \arguments{
+\item{fragment}{describe fragment}
+
 \item{sce}{object of the SingleCellExperiment class.}
 }
 \value{

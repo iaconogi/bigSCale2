@@ -4,7 +4,7 @@
 \alias{computeMarkers}
 \title{computeMarkers}
 \usage{
-computeMarkers(object, ...)
+computeMarkers(object, cap.ones = F, ...)
 }
 \arguments{
 \item{sce}{object of the SingleCellExperiment class.}

@@ -1,3 +1,26 @@
+
+Pdistance <- function(counts) {
+
+  counts=counts>0
+  pop.size=nrow(counts)
+  pvalues=matrix(NA,ncol(counts),ncol(counts))
+  samp.size=Rfast::colsums(counts)
+  
+  for (h in 1:ncol(counts))
+  {
+    samp.hits=Rfast::colsums(  counts[which(counts[,h]>0),]  )
+    pop.hits=rep(samp.size[h],ncol(counts))
+    pvalues[h,]=phyper(samp.hits, pop.hits, pop.size-pop.hits, samp.size,lower.tail = FALSE)+dhyper(samp.hits, pop.hits, pop.size-pop.hits, samp.size)
+    #pvalues[h,]=(samp.hits/samp.size)/(pop.hits/pop.size)
+  }
+  pvalues=1/(-log10(pvalues))
+  diag(pvalues)=0
+  pvalues.out<<-pvalues
+  samp.size.out<<-samp.size
+  return(pvalues)
+}
+
+
 jaccard_dist_text2vec_04 <- function(x, y = NULL, format = 'dgCMatrix') {
   if (!inherits(x, 'sparseMatrix'))
     stop("at the moment jaccard distance defined only for sparse matrices")
@@ -485,7 +508,9 @@ return(list(filtered.cells=which(det.genes>=filter.cells),det.genes=det.genes))
 bigscale.readMM <- function(file,max.vals,skip.vals=0,size.only=FALSE,current.condition=NA)
 {
   library(Matrix)
-  
+  #print('Starting bigscale.readMM')
+  #gc.out<-gc()
+  #print(gc.out)
   if (is.character(file))
     file <- if(file == "") stdin() else file(file)
   if (!inherits(file, "connection"))
@@ -937,15 +962,15 @@ if (estimated.pooling>5 & estimated.pooling<=25)
   number=sqrt(estimated.pooling)
   
   pooling1=ceiling(number)-1
-  result1=iCells.simple(file.dir = file.dir,pooling.factor=pooling1,sample.conditions = sample.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)           
+  result1=iCells.simple(file.dir = file.dir,pooling.factor=pooling1,sample.conditions = sample.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore,intermediate = TRUE)           
   if (pooling1>2)
    {
    preproc.cells=round(preproc.cells/(pooling1-1))
-   icells.chuncks=round(icells.chuncks/(pooling1-1)) 
-  }
+   icells.chuncks=round(icells.chuncks/(pooling1-1))
+   print(sprintf('Reducing preproc.cells to %g and icells.chuncks to %g',preproc.cells,icells.chuncks))
+   }
   
   pooling2=floor(number)-1
-  print(sprintf('Reducing preproc.cells to %g and icells.chuncks to %g'))
   result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)
   
   
@@ -966,13 +991,16 @@ if (estimated.pooling>25)
   pooling2=min(ceiling(number)-1,4)
   pooling3=min(floor(number)-1,4)
   
-  result1=iCells.simple(file.dir = file.dir,pooling.factor=pooling1,sample.conditions = sample.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore)                  
+  result1=iCells.simple(file.dir = file.dir,pooling.factor=pooling1,sample.conditions = sample.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore = min_ODscore,intermediate = TRUE)                  
   if (pooling1>2)
   {
     preproc.cells=round(preproc.cells/(pooling1-1))
-    icells.chuncks=round(icells.chuncks/(pooling1-1)) 
+    icells.chuncks=round(icells.chuncks/(pooling1-1))
+    print(sprintf('Reducing preproc.cells to %g and icells.chuncks to %g',preproc.cells,icells.chuncks))
   }
-  result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore)
+  
+  result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore,intermediate = TRUE)     
+  
   result3=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling3,sample.conditions = result2$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore)
   
   
@@ -988,7 +1016,7 @@ if (estimated.pooling>25)
 }
 
 
-iCells.simple = function (file.dir,pooling.factor,sample.conditions,pooling,q.cutoffs,verbose,preproc.cells,icells.chuncks,neighbours,preproc.chuncks,min_ODscore){
+iCells.simple = function (file.dir,pooling.factor,sample.conditions,pooling,q.cutoffs,verbose,preproc.cells,icells.chuncks,neighbours,preproc.chuncks,min_ODscore,intermediate=FALSE){
  
 library(SingleCellExperiment)
   
@@ -1165,12 +1193,17 @@ while (TRUE)
   
   }
 
-
-
-
 merge.chunks(verbose)
-icell.mat=Matrix::readMM("iCells.mtx.gz")
-return(list(icell.mat=icell.mat,iCells=iCells,output.conditions=output.conditions,model=N_pct,driving.genes=driving.genes))
+
+if (intermediate==FALSE)
+  {
+  icell.mat=Matrix::readMM("iCells.mtx.gz")
+  return(list(icell.mat=icell.mat,iCells=iCells,output.conditions=output.conditions,model=N_pct,driving.genes=driving.genes))
+  }
+else
+  {
+  return(list(iCells=iCells,output.conditions=output.conditions,model=N_pct,driving.genes=driving.genes))
+  }
 
 }
 
@@ -1396,7 +1429,7 @@ return(max.all.inter)
 
 
 
-bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size,fragment=FALSE,create.distances=FALSE) {
+bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size,fragment=FALSE,create.distances=FALSE,modality='bigscale') {
   
 
 if (class(expr.data.norm)=='big.matrix')
@@ -1416,7 +1449,17 @@ if (fragment==FALSE)
   if (num.samples>=10000) dim.cutoff=150
   }
 else
-  dim.cutoff=50  
+{
+  if (fragment==TRUE)
+    dim.cutoff=50
+  else
+    {
+    dim.cutoff=fragment*ncol(expr.data.norm)
+    cat(sprintf('\nClustering to groups of at most %g cells (%g %%)',dim.cutoff,fragment*100))
+    }
+    
+}
+    
 
 print(sprintf('Clustering cells down to groups of approximately %g-%g cells',dim.cutoff,dim.cutoff*5))   
 #dim.cutoff=ncol(expr.data.norm)*min.group.size  
@@ -1445,7 +1488,7 @@ while(1){
       dummy=as.matrix(ODgenes[[1]])
       ODgenes=which(dummy[,1]==1)
       #print('Computing distances ...')
-      D=compute.distances(expr.norm = expr.data.norm[,which(mycl==k)],N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size[which(mycl==k)])
+      D=compute.distances(expr.norm = expr.data.norm[,which(mycl==k)],N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size[which(mycl==k)],modality=modality)
       temp.clusters=bigscale.cluster(D,plot.clusters = FALSE,clustering.method = 'low.granularity',granularity.size=dim.cutoff,verbose=FALSE)$clusters #cut.depth=current.cutting,method.treshold = 0.2
       if (max(temp.clusters)>1) 
         action.taken=1
@@ -1473,7 +1516,11 @@ while(1){
   tot.recursive=tot.recursive+1  
   
   cat(sprintf('\nRecursive clustering, after round %g obtained %g clusters',tot.recursive,max(mycl.new)))
-  
+  # if (modality=='jaccard' & tot.recursive==5)
+  # {
+  #   cat(sprintf('\n\nYou are analyzing ATAC-seq data, I stop the clustering to avoid creating too many clusters. If you want to customize the analysis with more/less rounds of recursive contact the developer at gio.iacono.work@gmail.com'))
+  #   break
+  # }
   #current.cutting=current.cutting+10
   if (action.taken==0) 
     break
@@ -2362,7 +2409,16 @@ if (is.vector(tot.scores) | ncol(tot.scores)==1)
 # removing genes without significant DE
 expressed=which(Rfast::rowsums(abs(tot.scores)>cutoff)>0)
 
-
+if (length(expressed)>15000)
+while (1)
+{
+  expressed=which(Rfast::rowsums(abs(tot.scores)>cutoff)>0)
+  if (length(expressed)<15000)
+      break  
+  else
+      cutoff=cutoff+1
+}
+  
 
 tot.scores=tot.scores[expressed,]
 gene.names=gene.names[expressed]
@@ -2370,7 +2426,7 @@ gene.names=gene.names[expressed]
 scores=Rfast::rowsums(abs(tot.scores))/ncol(tot.scores)
 
 
-print(sprintf("Clustering %g genes differentially expressed...",nrow(tot.scores)))
+print(sprintf("Clustering %g genes differentially expressed with a cutoff of %.2f...",nrow(tot.scores),cutoff))
 
 # clustering and creating the list of markers
 clusters=bigscale.cluster(1-Rfast::cora(t(tot.scores)))$clusters
@@ -2392,7 +2448,7 @@ return(signatures)
 
 
 
-calculate.marker.scores = function (expr.norm, clusters, N_pct, edges, lib.size, speed.preset){
+calculate.marker.scores = function (expr.norm, clusters, N_pct, edges, lib.size, speed.preset,cap.ones=F){
   
   gc()  
   tot.clusters=max(clusters)
@@ -2409,7 +2465,8 @@ calculate.marker.scores = function (expr.norm, clusters, N_pct, edges, lib.size,
   pb <- progress::progress_bar$new(format = "Running Diff.Expr. [:bar] :current/:total (:percent) eta: :eta", total = tot.clusters*(tot.clusters-1)/2)
   pb$tick(0)
 
-
+  if (cap.ones==T)
+    expr.norm[expr.norm>0]=1
   
   for (j in 1:(tot.clusters-1))
     for (k in (j+1):tot.clusters)
@@ -2430,13 +2487,10 @@ return(out)
 }
 
 
-get.log.scores = function (N_pct){
+get.log.scores = function (N_pct,p.cutoff=0.01){
   
 
   tot.el=nrow(N_pct)
-  
-  # Configure deregulated treshold 
-  p.cutoff=0.01
   
   # Making N_pct symmetric
   for (k in 1:tot.el)
@@ -2873,19 +2927,20 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   
   if (modality=='jaccard')
   {
+    #expr.driving.norm=expr.driving.norm*mean(lib.size)
     print("Calculating Jaccard distances ...")
-    expr.driving.norm.out<<-expr.driving.norm
     D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::Matrix(t(expr.driving.norm>0))))
-    D=(D^2)
+    #D=as.matrix(dist(D)) # Euclidean Distance
+    #D=Pdistance(expr.driving.norm)
     return(D)
   }  
   
   
   if (!hasArg(genes.discarded)) genes.discarded =c()
 
+  
   log.scores=get.log.scores(N_pct)
   
-
   # Consumes several Gb of memory this step!
   # Vector is a trick to increase speed in the next C++ part
 
@@ -3002,7 +3057,7 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
 #   
 # }
 
-fit.model = function(expr.norm,edges,lib.size,plot.pre.clusters=FALSE){
+fit.model = function(expr.norm,edges,lib.size,plot.pre.clusters=TRUE){
   
   # Performing down-sampling, model does not require more than 5000 cells
   if (ncol(expr.norm)>5000)
@@ -3022,10 +3077,12 @@ fit.model = function(expr.norm,edges,lib.size,plot.pre.clusters=FALSE){
   print(dim(expr.norm))
   gc()
 
-
-  
+  # if (pipeline=='atac')
+  #   cutoff=0
+  # else
+    cutoff=1
   #Remove genes with 1 or 0 UMIs/reads in the whole dataset.
-  genes.low.exp =which(Rfast::rowsums(expr.norm>0)<=1)
+  genes.low.exp =which(Rfast::rowsums(expr.norm>0)<=cutoff)
   if (length(genes.low.exp))
     {
     print(sprintf('I remove %g genes not expressed enough', length(genes.low.exp)))
@@ -3036,26 +3093,32 @@ fit.model = function(expr.norm,edges,lib.size,plot.pre.clusters=FALSE){
   num.samples=ncol(expr.norm)
   
   
-
-  print("Calculating normalized-transformed matrix ...")
-  expr.norm.transformed = transform.matrix(expr.norm , 2 )
-  gc()
-  print("Calculating Pearson correlations ...")
-  #D=fastCor(expr.norm) #improvable with BLAS, or cor(expr.norm,method = 'pearson')
-  D=Rfast::cora(expr.norm.transformed)
-  rm(expr.norm.transformed)
-  gc()
+  # if (pipeline=='atac')
+  # {
+  #   print("Calculating distances for ATAC-seq pre-clustering...")
+  #   D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::Matrix(t(expr.norm>0))))
+  #   gc()
+  #   }  
+  # else
+  #   {
+    print("Calculating normalized-transformed matrix ...")
+    expr.norm.transformed = transform.matrix(expr.norm , 2 )
+    gc()
+    print("Calculating Pearson correlations ...")
+    #D=fastCor(expr.norm) #improvable with BLAS, or cor(expr.norm,method = 'pearson')
+    D=Rfast::cora(expr.norm.transformed)
+    rm(expr.norm.transformed)
+    gc()
+    
+    
   
   D=as.dist(1-D)
   print("Clustering  ...")
   ht=hclust(D,method='ward.D')
   
   
-  # if (plot.pre.clusters) # plotting the dendrogram
-  # {
-  #   d=as.dendrogram(ht)
-  #   plot(d)
-  # }
+  if (plot.pre.clusters) # plotting the dendrogram
+    plot(as.dendrogram(ht))
   
   
   # Adjusting max_group_size according to cell number
@@ -3524,6 +3587,15 @@ generate.edges<-function(expr.data){
   edges=c(0,0.0000001)
   
 
+  # if (pipeline=='atac')
+  #   {
+  #   step=0.75
+  #   for (k in 1:40)
+  #     edges[length(edges)+1]=edges[length(edges)]+step
+  #   edges[length(edges)+1]=Inf
+  #   return(edges)
+  #   }
+  
   percentage.exp=(sum(expr.data<10 & expr.data>0)/sum(expr.data>0))
   # Testing how many nonzeros values are below 70, if number is large than we have UMIs like distribution
   if (percentage.exp>0.9)
@@ -3714,7 +3786,7 @@ id.map<-function(gene.list,all.genes){
 #' @seealso    
 #' [ViewSignatures()]  
 
-bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=TRUE, clustering='normal'){
+bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=FALSE, clustering='normal'){
   
 if ('counts' %in% assayNames(sce))
   {
@@ -3786,4 +3858,117 @@ if ('counts' %in% assayNames(sce))
 }
 
 
+
+
+
+
+
+
+
+
+#' bigSCale ATAC (IN DEVELOPMENT, DO NOT USE)
+#'
+#' Compute cell clusters, markers and pseudotime
+#'
+#' @param sce object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}. Optionally, you can also fill \code{colData(sce)} with any annotation such as batch, condition: they will be displayed in the plots. 
+#' @return  An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over
+#'
+#'
+#' @examples
+#' sce=bigscale.atac(sce)
+#'
+#' @export
+
+
+bigscale.atac = function (sce, memory.save=FALSE, fragment=FALSE){
+  
+  if ('counts' %in% assayNames(sce))
+  {
+    print('PASSAGE 1) Setting the bins for the expression data ....')
+    sce=preProcess(sce,pipeline='atac') # so does not create edges
+    
+    print('PASSAGE 2) Storing the Normalized data ....')
+    sce = storeNormalized(sce,memory.save)
+    
+    print('PASSAGE 4) Storing the Normalized-Transformed data (needed for some plots) ....')
+    sce = storeTransformed(sce)
+  }
+  
+  else
+    
+  {
+    sce = storeNormalized(sce,memory.save)
+    sce = storeTransformed(sce)
+  }
+  
+  
+  sce=RecursiveClustering(sce,modality='jaccard',fragment=fragment)
+
+  print('PASSAGE 7) Computing TSNE ...')
+  sce=storeTsne(sce)
+  
+  print('FIX: Storing dendrogram to allow signatures visualization')
+  out=bigscale.cluster(sce@int_metadata$D)
+  sce@int_metadata$htree=out$ht
+  
+  
+  print('PASSAGE 10) Computing the markers (slowest part) ...')
+  sce=computeMarkers(sce,speed.preset='fast',cap.ones=T)
+  
+  
+  print('PASSAGE 11) Organizing the markers ...')
+  sce=setMarkers(sce)
+  
+  if (memory.save==TRUE)
+  { 
+    print('PASSAGE 12) Restoring full matrices of normalized counts and transformed counts...')
+    sce=restoreData(sce)
+  }
+  
+  return(sce)
+  
+}
+
+#' bigSCale ATAC Pseudo  (IN DEVELOPMENT, DO NOT USE)
+#'
+#' Pseudotime for ATAC-seq data
+#'
+#' @param sce object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}. Optionally, you can also fill \code{colData(sce)} with any annotation such as batch, condition: they will be displayed in the plots. 
+#' @return  An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over
+#'
+#'
+#' @examples
+#' sce=bigscale.atac(sce)
+#'
+#' @export
+
+
+bigscale.atac.pseudo = function (sce, memory.save=FALSE){
+  
+  if ('counts' %in% assayNames(sce))
+  {
+    print('PASSAGE 1) Setting the bins for the expression data ....')
+    sce=preProcess(sce,pipeline='atac') # so does not create edges
+    
+    print('PASSAGE 2) Storing the Normalized data ....')
+    sce = storeNormalized(sce,memory.save)
+  }
+  
+  else
+    sce = storeNormalized(sce,memory.save)
+  
+  
+  sce=setDistances(sce,modality='jaccard')
+  
+  sce=storePseudo(sce)
+  
+  if (memory.save==TRUE)
+  { 
+    print('PASSAGE 12) Restoring full matrices of normalized counts and transformed counts...')
+    sce=restoreData(sce)
+  }
+  
+  return(sce)
+  
+}
 

@@ -4,7 +4,7 @@
 \alias{preProcess}
 \title{preProcess}
 \usage{
-preProcess(object)
+preProcess(object, pipeline = "rna")
 }
 \arguments{
 \item{sce}{object of the SingleCellExperiment class.}

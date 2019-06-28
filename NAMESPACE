@@ -3,6 +3,8 @@
 export(RecursiveClustering)
 export(ViewPseudo)
 export(bigscale)
+export(bigscale.atac)
+export(bigscale.atac.pseudo)
 export(bigscale.convert.h5)
 export(bigscale.readMM)
 export(bigscale.writeMM)

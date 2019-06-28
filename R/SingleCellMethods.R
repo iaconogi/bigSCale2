@@ -119,7 +119,7 @@ setMethod(f="getSignatures",
 
  
 setGeneric(name="preProcess",
-           def=function(object)
+           def=function(object,pipeline='rna')
            {
              standardGeneric("preProcess")
            }
@@ -127,7 +127,7 @@ setGeneric(name="preProcess",
 
 setMethod(f="preProcess",
           signature="SingleCellExperiment",
-          definition=function(object)
+          definition=function(object,pipeline='rna')
           {
             
             # Removing zeros rows
@@ -161,8 +161,12 @@ setMethod(f="preProcess",
             print(class(counts(object)))
             sizeFactors(object) = Rfast::colsums(counts(object))
             
-            print('Generating the edges ....')
-            object@int_metadata$edges=generate.edges(counts(object))
+            if (pipeline=='rna')
+              {
+              print('Generating the edges ....')
+              object@int_metadata$edges=generate.edges(counts(object))
+              }
+            
             
             return(object)
           }
@@ -196,7 +200,7 @@ setMethod(f="setModel",
             if ('normcounts' %in% assayNames(object))
              model.output=fit.model(expr.norm = normcounts(object),edges = object@int_metadata$edges,lib.size=sizeFactors(object))
             else
-            model.output=fit.model(expr.norm = object@int_metadata$expr.norm.big,edges = object@int_metadata$edges,lib.size=sizeFactors(object)) 
+              model.output=fit.model(expr.norm = object@int_metadata$expr.norm.big,edges = object@int_metadata$edges,lib.size=sizeFactors(object)) 
             
             object@int_metadata$model=model.output$N_pct
             object@int_metadata$N=model.output$N
@@ -813,7 +817,7 @@ setMethod(f="storeTransformed",
 #' @export
 
 setGeneric(name="computeMarkers",
-           def=function(object,...)
+           def=function(object,cap.ones=F,...)
            {
              standardGeneric("computeMarkers")
            }
@@ -821,12 +825,12 @@ setGeneric(name="computeMarkers",
 
 setMethod(f="computeMarkers",
           signature="SingleCellExperiment",
-          definition=function(object,...)
+          definition=function(object,cap.ones=F,...)
           {
             if ('normcounts' %in% assayNames(object))
-              out=calculate.marker.scores(expr.norm = normcounts(object), clusters=getClusters(object), N_pct=object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object), ...)
+              out=calculate.marker.scores(expr.norm = normcounts(object), clusters=getClusters(object), N_pct=object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object),cap.ones=cap.ones,...)
             else
-              out=calculate.marker.scores(expr.norm = object@int_metadata$expr.norm.big, clusters=getClusters(object), N_pct=object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object), ...)
+              out=calculate.marker.scores(expr.norm = object@int_metadata$expr.norm.big, clusters=getClusters(object), N_pct=object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object),cap.ones=cap.ones, ...)
             
             object@int_metadata$Mscores=out$Mscores
             object@int_metadata$Fscores=out$Fscores
@@ -1124,6 +1128,7 @@ setMethod(f="ViewPseudo",
 #' Clusters in an accurate recursive way to force immediate identification of cell-subtypes
 #' 
 #' @param sce object of the SingleCellExperiment class.
+#' @param fragment describe fragment
 #' 
 #' @return  object of the SingleCellExperiment class, with cell-cell distances stored inside
 #' 
@@ -1133,7 +1138,7 @@ setMethod(f="ViewPseudo",
 #' @export
 
 setGeneric(name="RecursiveClustering",
-           def=function(object)
+           def=function(object,modality='bigscale',fragment=FALSE)
            {
              standardGeneric("RecursiveClustering")
            }
@@ -1141,16 +1146,16 @@ setGeneric(name="RecursiveClustering",
 
 setMethod(f="RecursiveClustering",
           signature="SingleCellExperiment",
-          definition=function(object)
+          definition=function(object,modality='bigscale',fragment=FALSE)
           {
             if ('normcounts' %in% assayNames(object))
               {
-              out=bigscale.recursive.clustering(expr.data.norm = normcounts(object),model= object@int_metadata$model,edges = object@int_metadata$edges,lib.size = sizeFactors(object),fragment=FALSE,create.distances=TRUE)
+              out=bigscale.recursive.clustering(expr.data.norm = normcounts(object),model= object@int_metadata$model,edges = object@int_metadata$edges,lib.size = sizeFactors(object),fragment=fragment,create.distances=TRUE,modality=modality)
               object@int_metadata$D=out$D
               }
             else
               {
-              out=bigscale.recursive.clustering(expr.data.norm = object@int_metadata$expr.norm.big,model= object@int_metadata$model,edges = object@int_metadata$edges,lib.size = sizeFactors(object),fragment=FALSE,create.distances=TRUE)
+              out=bigscale.recursive.clustering(expr.data.norm = object@int_metadata$expr.norm.big,model= object@int_metadata$model,edges = object@int_metadata$edges,lib.size = sizeFactors(object),fragment=fragment,create.distances=TRUE,modality=modality)
               object@int_metadata$D=bigmemory::as.big.matrix(out$D)
               }
             gc()

@@ -12,6 +12,10 @@
 **Citatations
 If you used bigSCale2 please cite out papers [Iacono 2018](https://genome.cshlp.org/content/28/6/878) and [Iacono 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1713-4).**
 
+
+**UPDATES**
+v1.5 (28/06/2019): Fixed a bug in the iCells which was causing an excessive use of memory usage.
+
 **Quick Start**
 
 *bigSCale* is formed by three sub-tools which can be used either independently or in synergy. Each sub-tool has its own tutorial.<br />
