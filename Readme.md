@@ -14,8 +14,8 @@ If you used bigSCale2 please cite out papers [Iacono 2018](https://genome.cshlp.
 
 
 **UPDATES**
-v1.6 (04/07/2019): Added a pipeline for single cell ATAC-seq data.
-v1.5 (28/06/2019): Fixed a bug in the iCells which was causing an excessive use of memory usage.
+v1.6 (04/07/2019): Added a pipeline for single cell ATAC-seq data.<br />
+v1.5 (28/06/2019): Fixed a bug in the iCells which was causing an excessive use of memory usage.<br />
 
 **Quick Start**
 
