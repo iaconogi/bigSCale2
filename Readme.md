@@ -14,6 +14,7 @@ If you used bigSCale2 please cite out papers [Iacono 2018](https://genome.cshlp.
 
 
 **UPDATES**
+v1.6 (04/07/2019): Added a pipeline for single cell ATAC-seq data.
 v1.5 (28/06/2019): Fixed a bug in the iCells which was causing an excessive use of memory usage.
 
 **Quick Start**
@@ -44,6 +45,7 @@ devtools::install_github("iaconogi/bigSCale2")
         - [Pseudotime](#pseudotime)
         - [SuperClustering](#super-clustering)
         - [Classifier](#classifier)
+        - [ATAC-seq data](#atac-seq-data)
 * [Advanced use](#advanced-use)
     
 
@@ -246,6 +248,116 @@ This code assigns new clusters to your dataset. Specifically, it will force the 
 The tool works by selecting genes co-expressed with your markers and using them to tame the problem of dropouts. The output graph shows how the size of the 4 clusters changes with the increase of the markers used. Passing the cursor over each dot displays which markers have been added in each step. The first markers used in step1 are most of the times the input markers, in this case Cd4 and Cd8. By default, the tools add up to 20 markers (20+20). This number can be changed with the parameter `num.classifiers`. This tool is still a prototype, so if you encounter problems please do not hesitate to contact me at gio.iacono.work@gmail.com or by opening an issue in GitHub.
 
 ![](figures/classifier.png)
+
+### ATAC-seq data 
+bigSCale2 can be used to analyze ATAC-seq data. I assume that your data is stored in a SingleCellExperiment class, same as RNA-seq data. Basically each called peak is a feature with a certain number of reads in each cell. At the end of this brief ATAC-seq tutorial I'll show how to load the data from a 10X atac experiment. Before you continue, you should know that bigSCale2 at the moment supports only small size ATAC-seq datasets. Depending on your available RAM, max size could range from 10k to 30/50k cells. In the future I will add the support for datasets of unlimited size. If you want to know more about bigSCale2 and ATAC-seq contact me at gio.iacono.work@gmail.com
+
+We now load the sample dataset, 5234 PBMCs from the public 10x dataset already stored in a SingleCellExperiment object.
+
+```{r}
+data(sce)
+sce
+```
+```{r}
+class: SingleCellExperiment 
+dim: 52914 5234 
+metadata(0):
+assays(1): counts
+rownames(52914): OR4F16 distal 1 AL669831.1 distal 2 ... PRORY distal 52913 PRORY distal
+  52914
+rowData names(0):
+colnames: NULL
+colData names(0):
+reducedDimNames(0):
+spikeNames(0):
+```
+We have 52914 peaks in 5234 cells.
+Analysis works with a single line, similar to RNA-seq data.
+
+```{r}
+sce=bigscale.atac(sce)
+```
+After the analysis is over we can visualize the results in a similar way as in RNA-seq data, therefore to learn more details please refer to the bigSCale tutorial for visualizing RNA-seq data (example, Browsing markers, Violin plots and so on).
+
+```{r}
+viewReduced(sce) # to see t-SNE with clusters
+```
+![](figures/atac_clusters.png)
+
+```{r}
+Mist=getMarkers(sce) # to get the Markers of cell clusters
+DT::datatable(Mlist[[1,1]]) # to visualize the markers specifc to cluster 1
+```
+![](figures/atac_M1_1.png)
+
+
+We have almost 2k peaks with higher frequence in cluster 1. The peak names are extracted from the 10x CellRanger output files. I also added a number at the end of each peak beacuse there are otherwise peaks with identical names. So, for example, the peak  number 30080 is the the most specific promoter peak distinguishing C1 from the others.
+We can visualize the expression of this peak in the t-SNE or Violin Plot.
+
+```{r}
+viewReduced(sce,'MS4A1 promoter 30080')
+```
+![](figures/atac_ms4a1.png)
+
+```{r}
+viewGeneViolin(sce,'MS4A1 promoter 30080')
+```
+![](figures/atac_ms4a1_prom.png)
+
+The object Mlist can also be used to search for peaks shared between clusters. For example C5 does not have any specific marker, but it has several markers shared with at most another cluster, as for instance the gene IL1B shared with C6.
+
+```{r}
+DT::datatable(Mlist[[5,2]])
+```
+![](figures/atac_dt.png)
+
+
+```{r}
+viewReduced(sce,'IL1B promoter 7225')
+```
+![](figures/atac_il1b.png)
+
+
+You can inspect signatures of co-expressed peaks using the command ViewSignatures(). However, for ATAC-seq data it work differently than RNA-seq data. Specifically, you should do:
+
+```{r}
+out=viewSignatures(sce) # We extract the average cell-wise signature expression for each signature
+viewReduced(sce,color.by = out$`Signature 1`) # We visualise the t-SNE with the expression of a given signature
+```
+
+![](figures/atac_signatures.png)
+
+
+
+Here we see the expression of signature 1, which is shared between clusters 5 and 6.
+To inspect the genes of signature 1 we run:
+
+```{r}
+signatures=getSignatures(sce)
+head(signatures[[1]])
+```
+
+```{r}
+  GENE_NUM                                            GENE_NAME    SCORE
+1    25568                                  KLF4 promoter 25605 16.19392
+2     7214                                   IL1B promoter 7225 16.08160
+3    38594                                 PPCDC promoter 38658 15.61617
+4     6095 C2orf61;RP11-761B3.1;TTC7A distal;distal;distal 6102 15.45972
+5    26368                                    RXRA distal 26405 14.52509
+6    18098                                C6orf223 distal 18125 14.42887
+```
+
+It is also possible to compute a pseudotime for our dataset.
+
+```{r}
+sce=bigscale.atac.pseudo(sce) # compute pseudotime
+ViewPseudo(sce,color.by = 'clusters') # visualize it coloring cells by clusters
+```
+
+![](figures/atac_pseudo.png)
+
+For more information on plots with pseudotime plase refer to the pseudotime plot for RNA-seq data or contact me at gio.iacono.work@gmail.com
+
 
 
 ### **Advanced use**
