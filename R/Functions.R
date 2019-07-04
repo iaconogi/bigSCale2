@@ -999,7 +999,7 @@ if (estimated.pooling>25)
     print(sprintf('Reducing preproc.cells to %g and icells.chuncks to %g',preproc.cells,icells.chuncks))
   }
   
-  result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore,intermediate = TRUE)     
+  result2=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling2,sample.conditions = result1$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore,intermediate = TRUE) 
   
   result3=iCells.simple(file.dir = 'iCells.mtx.gz',pooling.factor=pooling3,sample.conditions = result2$output.conditions,pooling = pooling,q.cutoffs = q.cutoffs,verbose=verbose,preproc.cells=preproc.cells,icells.chuncks=icells.chuncks,neighbours=neighbours,preproc.chuncks=preproc.chuncks,min_ODscore=min_ODscore)
   
@@ -2122,7 +2122,26 @@ bigSCale.signature.plot = function (ht,clusters,colData,data.matrix,signatures,s
   gc()
   
   if (is.na(ht[1]))
-  stop('You cannot run the ViewSignatures in combination with recursive clustering')
+  {
+    print('You are using ViewSignatures with ATAC-seq data or with recursive clustering with RNA-seq')
+    print('In these cases it works diffrently than normal')
+    print('calling ViewSignatures will return a data frame in which the i-th column is the average expression of the i-th signature')
+    print('You can pass these colmuns one by one to ViewGeneViolin() or ViewReduced() to plot the signature expression')
+    
+    data.matrix=Matrix::as.matrix(data.matrix)
+    plotting.data=c()
+    row.labels=c()
+    for (k in 1:length(signatures))
+      {
+      plotting.data=cbind(plotting.data,shift.values(Rfast::colmeans(data.matrix[signatures[[k]]$GENE_NUM,]),0,1))
+      row.labels[k]=sprintf('Signature %g',k)
+      }
+    
+    plotting.data=as.data.frame(plotting.data)
+    colnames(plotting.data)=row.labels
+    return(plotting.data)
+  }
+  
   
   data.matrix=Matrix::as.matrix(data.matrix)
   
@@ -2268,13 +2287,13 @@ assign.color = function (x, scale.type=NA){
 # }
 
 
-bigSCale.tsne.plot = function (tsne.data,color.by,fig.title,colorbar.title){
+bigSCale.tsne.plot = function (tsne.data,color.by,fig.title,colorbar.title,cluster_label){
   
   gc()
   #setting cell names for hovering
   cell.names=c()
   for (k in 1:nrow(tsne.data))
-    cell.names[k]=sprintf('Cell_%g',k) 
+    cell.names[k]=sprintf('Cell_%g  Cluster_%g',k,cluster_label[k]) 
   
   if (is.factor(color.by))
     {
@@ -2408,15 +2427,11 @@ if (is.vector(tot.scores) | ncol(tot.scores)==1)
 
 # removing genes without significant DE
 expressed=which(Rfast::rowsums(abs(tot.scores)>cutoff)>0)
-
 if (length(expressed)>15000)
-while (1)
 {
-  expressed=which(Rfast::rowsums(abs(tot.scores)>cutoff)>0)
-  if (length(expressed)<15000)
-      break  
-  else
-      cutoff=cutoff+1
+  print('Found too many DE genes/features, limiting to top 15000')
+  ranking=Rfast::rowsums(abs(tot.scores))
+  expressed=order(ranking,decreasing = T)[1:15000]
 }
   
 
@@ -2551,7 +2566,10 @@ tot.el=nrow(N_pct)
 
 
 # normalize expression data for library size without scaling to the overall average depth
-expr.norm=expr.norm/mean(lib.size)
+if (speed.preset!='fast')
+  expr.norm=expr.norm/mean(lib.size)
+
+
 
 # saving the FOLD changes
 F.change=log2(Rfast::rowmeans(expr.norm[,group2])/Rfast::rowmeans(expr.norm[,group1]))
@@ -2559,6 +2577,19 @@ dummy=matrix(0,num.genes.initial,1)
 dummy[genes.expr]=F.change
 F.change=dummy
 rm(dummy)
+
+# if ( (length(group1)+length(group2))==1774 )
+# {
+#   # expr.norm.out<<-expr.norm
+#   # group2.out<<-group2
+#   # group1.out<<-group1
+#   # num.genes.initial.out<<-num.genes.initial
+#   F.change.out<<-F.change
+#   #print('Fold change of positin 40764')
+#   #print(F.change[40764])
+# }
+#   
+
 
 # Calculating Wilcoxon
 dummy=rep(0,num.genes)
@@ -2929,7 +2960,8 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   {
     #expr.driving.norm=expr.driving.norm*mean(lib.size)
     print("Calculating Jaccard distances ...")
-    D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::Matrix(t(expr.driving.norm>0))))
+    input.jaccard<<-expr.driving.norm
+    D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::Matrix(t(expr.driving.norm>0),sparse = T)))
     #D=as.matrix(dist(D)) # Euclidean Distance
     #D=Pdistance(expr.driving.norm)
     return(D)
@@ -3866,12 +3898,15 @@ if ('counts' %in% assayNames(sce))
 
 
 
-#' bigSCale ATAC (IN DEVELOPMENT, DO NOT USE)
-#'
+#' bigSCale ATAC 
+#' 
+#' 
 #' Compute cell clusters, markers and pseudotime
 #'
-#' @param sce object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}. Optionally, you can also fill \code{colData(sce)} with any annotation such as batch, condition: they will be displayed in the plots. 
-#' @return  An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over
+#' @param sce object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}.  
+#' @param memory.save If the code fails due to memory problems switch this option on to try to overcome them.
+#' @param fragment ATAC-seq clusters are created with a recurive apporach. The clustersing stops whan the size of the smallest clusters is around \code{fragment=0.1} (ie 10 percent) of the total cell number. If you want to partition more/less then decrease/increase the value.
+#' @return  An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods. Check the online quick start tutorial for more info.
 #'
 #'
 #' @examples
@@ -3880,14 +3915,18 @@ if ('counts' %in% assayNames(sce))
 #' @export
 
 
-bigscale.atac = function (sce, memory.save=FALSE, fragment=FALSE){
+bigscale.atac = function (sce, memory.save=FALSE, fragment=0.1){
   
   if ('counts' %in% assayNames(sce))
   {
-    print('PASSAGE 1) Setting the bins for the expression data ....')
+    
+    #print('PASSAGE 1) Imputing ATAC data')
+    #sce=ATACimpute(sce)
+    
+    print('PASSAGE 2) Per-processing the dataset')
     sce=preProcess(sce,pipeline='atac') # so does not create edges
     
-    print('PASSAGE 2) Storing the Normalized data ....')
+    print('PASSAGE 3) Storing the Normalized data ....')
     sce = storeNormalized(sce,memory.save)
     
     print('PASSAGE 4) Storing the Normalized-Transformed data (needed for some plots) ....')
@@ -3901,16 +3940,13 @@ bigscale.atac = function (sce, memory.save=FALSE, fragment=FALSE){
     sce = storeTransformed(sce)
   }
   
-  
+  # sce=setODgenes(sce,min_ODscore = 4)
+  # sce=setDistances(sce,modality='jaccard')
+  # sce=setClusters(sce)
   sce=RecursiveClustering(sce,modality='jaccard',fragment=fragment)
 
   print('PASSAGE 7) Computing TSNE ...')
   sce=storeTsne(sce)
-  
-  print('FIX: Storing dendrogram to allow signatures visualization')
-  out=bigscale.cluster(sce@int_metadata$D)
-  sce@int_metadata$htree=out$ht
-  
   
   print('PASSAGE 10) Computing the markers (slowest part) ...')
   sce=computeMarkers(sce,speed.preset='fast',cap.ones=T)
@@ -3933,8 +3969,8 @@ bigscale.atac = function (sce, memory.save=FALSE, fragment=FALSE){
 #'
 #' Pseudotime for ATAC-seq data
 #'
-#' @param sce object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}. Optionally, you can also fill \code{colData(sce)} with any annotation such as batch, condition: they will be displayed in the plots. 
-#' @return  An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over
+#' @param sce object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}.
+#' @return  An sce object storing the markers cluster and other results. Check the online quick start tutorial \url{https://github.com/iaconogi/bigSCale2#atac-seq-data} to learn more. 
 #'
 #'
 #' @examples
@@ -3957,7 +3993,7 @@ bigscale.atac.pseudo = function (sce, memory.save=FALSE){
   else
     sce = storeNormalized(sce,memory.save)
   
-  
+  sce=setODgenes(sce,min_ODscore = 4)
   sce=setDistances(sce,modality='jaccard')
   
   sce=storePseudo(sce)

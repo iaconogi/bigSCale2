@@ -2,15 +2,19 @@
 % Please edit documentation in R/Functions.R
 \name{bigscale.atac}
 \alias{bigscale.atac}
-\title{bigSCale ATAC (IN DEVELOPMENT, DO NOT USE)}
+\title{bigSCale ATAC}
 \usage{
-bigscale.atac(sce, memory.save = FALSE, fragment = FALSE)
+bigscale.atac(sce, memory.save = FALSE, fragment = 0.1)
 }
 \arguments{
-\item{sce}{object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}. Optionally, you can also fill \code{colData(sce)} with any annotation such as batch, condition: they will be displayed in the plots.}
+\item{sce}{object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}.}
+
+\item{memory.save}{If the code fails due to memory problems switch this option on to try to overcome them.}
+
+\item{fragment}{ATAC-seq clusters are created with a recurive apporach. The clustersing stops whan the size of the smallest clusters is around \code{fragment=0.1} (ie 10 percent) of the total cell number. If you want to partition more/less then decrease/increase the value.}
 }
 \value{
-An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over
+An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods. Check the online quick start tutorial for more info.
 }
 \description{
 Compute cell clusters, markers and pseudotime

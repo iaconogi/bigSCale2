@@ -1,6 +1,6 @@
 # **bigSCale 2**
 
-*bigSCale* is a complete framework for the analysis and visualization of single cell data. It allows to cluster, phenotype, perform pseudotime analysis, infer gene regulatory networks and reduce large datasets in smaller datasets with higher quality.
+*bigSCale* is a complete framework for the analysis and visualization of single cell data. It allows to cluster, phenotype, perform pseudotime analysis, infer gene regulatory networks and reduce large datasets in smaller datasets with higher quality. The latest update alos allows analysis of single cell ATAC-seq data.
 
 
 **Why using bigSCale 2?**
@@ -255,7 +255,7 @@ bigSCale2 can be used to analyze ATAC-seq data. I assume that your data is store
 We now load the sample dataset, 5234 PBMCs from the public 10x dataset already stored in a SingleCellExperiment object.
 
 ```{r}
-data(sce)
+data(atac_sce)
 sce
 ```
 ```{r}
@@ -346,6 +346,10 @@ head(signatures[[1]])
 5    26368                                    RXRA distal 26405 14.52509
 6    18098                                C6orf223 distal 18125 14.42887
 ```
+The parameter "fragment" adjusts the resolution of the clustering. By deault fragment=0.1, meaning that clustering stops when the clusters are about 10% or more of the total cell number. This value can be mobdulated to find the desired resolution, as in the plot below.
+
+![](figures/atac.png)
+
 
 It is also possible to compute a pseudotime for our dataset.
 

@@ -2,7 +2,7 @@
 % Please edit documentation in R/SingleCellMethods.R
 \name{viewGeneBarPlot}
 \alias{viewGeneBarPlot}
-\title{viewReduced}
+\title{viewGeneBarPlot}
 \usage{
 viewGeneBarPlot(object, gene.list)
 }

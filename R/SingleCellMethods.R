@@ -616,9 +616,9 @@ setMethod(f="viewReduced",
           {
             #if (missing(transform.in)) transform.in='trim'
             if (color.by[1]=='clusters') # we color by cluster
-              bigSCale.tsne.plot(tsne.data = reducedDim(object, method),color.by = as.factor(getClusters(object)),fig.title='CLUSTERS')
+              bigSCale.tsne.plot(tsne.data = reducedDim(object, method),color.by = as.factor(getClusters(object)),fig.title='CLUSTERS',cluster_label=getClusters(object))
             if (is.numeric(color.by) | is.factor(color.by)) # we color by custom used defined condition
-              bigSCale.tsne.plot(tsne.data = reducedDim(object, method),color.by = as.factor(color.by),fig.title='Custom Condition')
+              bigSCale.tsne.plot(tsne.data = reducedDim(object, method),color.by = color.by,fig.title='Custom Values',colorbar.title='Custom values',cluster_label=getClusters(object))
             if (is.character(color.by[1]) & color.by[1]!='clusters')
               {
               gene.name=color.by
@@ -635,7 +635,7 @@ setMethod(f="viewReduced",
                 color.by=cap.expression((normcounts(object)[gene.pos,]))
                 colorbar.title='COUNTS'
                 }
-              bigSCale.tsne.plot(tsne.data = reducedDim(object, method),color.by,fig.title=sprintf('%s expression',gene.name),colorbar.title)
+              bigSCale.tsne.plot(tsne.data = reducedDim(object, method),color.by,fig.title=sprintf('%s expression',gene.name),colorbar.title,cluster_label=getClusters(object))
               }
               
 
@@ -667,6 +667,9 @@ setMethod(f="viewSignatures",
           signature="SingleCellExperiment",
           definition=function(object,selected.cluster)
           {
+            if (is.na(object@int_metadata$htree[1]))
+              return(bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = assay(object,'transcounts'), signatures = object@int_metadata$Signatures,size.factors = sizeFactors(object),type='signatures') )
+              
             if (missing(selected.cluster))
               bigSCale.signature.plot(ht = object@int_metadata$htree, clusters=getClusters(object),colData = as.data.frame(colData(object)),data.matrix = assay(object,'transcounts'), signatures = object@int_metadata$Signatures,size.factors = sizeFactors(object),type='signatures') 
             else
@@ -888,7 +891,7 @@ setMethod(f="setMarkers",
           }
 )
 
-#' viewReduced
+#' viewGeneBarPlot
 #'
 #' View 2D reduced dimentions. For the moment only supports TSNE.
 #'
@@ -1037,7 +1040,7 @@ setMethod(f="storePseudo",
             # D=Matrix::Matrix(D)
             # gc()
             
-            
+            #G.out<<-G
             print('Computing MST ...')
             object@int_metadata$minST=igraph::mst(G, weights = igraph::E(G)$weight,algorithm = 'prim')
             print('Computing the layout ...')
@@ -1211,5 +1214,49 @@ setMethod(f="bigscaleDE",
             rownames(out)=gene.names
             colnames(out)=c('Z-score','Fold-change')
             return(out)
+          }
+)
+
+
+
+
+
+
+setGeneric(name="ATACimpute",
+           def=function(object,tot.cells=5)
+           {
+             standardGeneric("ATACimpute")
+           }
+)
+
+setMethod(f="ATACimpute",
+          signature="SingleCellExperiment",
+          definition=function(object,tot.cells=5)
+          {
+            D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::t(counts(object)>0)))
+            ix=matrix(0,nrow(D),tot.cells)
+            for (k in 1:nrow(D))
+              ix[k,]=order(D[k,])[1:tot.cells]
+            rm(D)
+            gc()
+            
+            full.counts=as.matrix(counts(object)>0)
+            imputed.counts=matrix(0,nrow(full.counts),ncol(full.counts))
+            gc()
+            for (k in 1:nrow(ix))
+              imputed.counts[,k]=Rfast::rowsums(full.counts[,ix[k,]])
+
+            dummy=Matrix::colSums(counts(sce)>0)
+            avg.before=mean(dummy)
+            sd.before=sd(dummy)
+            dummy=Rfast::colsums(imputed.counts>0)
+            avg.after=mean(dummy)
+            sd.after=sd(dummy)
+            
+            
+            print(sprintf('Before Imputation: %g average open sites per cell, %.2f standard deviation over mean',avg.before,sd.before/avg.before*100))
+            print(sprintf('After Imputation: %g average open sites per cell, %.2f standard deviation over mean',avg.after,sd.after/avg.after*100))
+            counts(object)=Matrix::Matrix(imputed.counts>0)
+            return(object)
           }
 )

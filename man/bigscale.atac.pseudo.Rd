@@ -7,10 +7,10 @@
 bigscale.atac.pseudo(sce, memory.save = FALSE)
 }
 \arguments{
-\item{sce}{object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}. Optionally, you can also fill \code{colData(sce)} with any annotation such as batch, condition: they will be displayed in the plots.}
+\item{sce}{object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}.}
 }
 \value{
-An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over
+An sce object storing the markers cluster and other results. Check the online quick start tutorial \url{https://github.com/iaconogi/bigSCale2#atac-seq-data} to learn more.
 }
 \description{
 Pseudotime for ATAC-seq data
