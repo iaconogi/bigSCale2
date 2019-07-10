@@ -2548,7 +2548,7 @@ if (class(expr.norm)=='big.matrix')
 else
   expr.norm=as.matrix(expr.norm[,c(group1,group2)])
 
-
+lib.size = lib.size[c(group1, group2)]
 
 
 group1=c(1:length(group1))
