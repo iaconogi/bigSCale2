@@ -2681,8 +2681,16 @@ for (k in 1:tot.el)
 # Vector is a trick to increase speed in the next C++ part
 indA.size=1000000
 critical.value=max(lib.size)*max(expr.norm)
+
 if (critical.value>indA.size/10)
-  stop(sprintf('Critical value too high (%g): Note from bigSCale author, you have to increase indA.size',critical.value))
+{
+  indA.size=indA.size*50
+  warning(sprintf('Critical value very high (%g): Increased memory usage!!',critical.value))
+  if (critical.value>indA.size/10)
+    stop(sprintf('Critical value way too high (%g): Stopping the analysis!!',critical.value))
+}
+  
+  
 #print('Proceding to allocate large vector')
 vector=c(0:indA.size)/10 # increase if code blocks, It can assign a gene exprssion level up to 10000000
 gc()
