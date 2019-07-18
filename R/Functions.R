@@ -1485,15 +1485,23 @@ while(1){
     {
       #print('Computing Overdispersed genes ...')
       ODgenes=calculate.ODgenes(expr.data.norm[,which(mycl==k)],verbose = FALSE)
-      dummy=as.matrix(ODgenes[[1]])
-      ODgenes=which(dummy[,1]==1)
-      #print('Computing distances ...')
-      D=compute.distances(expr.norm = expr.data.norm[,which(mycl==k)],N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size[which(mycl==k)],modality=modality)
-      temp.clusters=bigscale.cluster(D,plot.clusters = FALSE,clustering.method = 'low.granularity',granularity.size=dim.cutoff,verbose=FALSE)$clusters #cut.depth=current.cutting,method.treshold = 0.2
-      if (max(temp.clusters)>1) 
-        action.taken=1
+	  if (is.null(ODgenes))
+        {
+        D=NA
+        unclusterable[which(mycl==k)]=1   
+        }
       else
-        unclusterable[which(mycl==k)]=1
+		{
+		  dummy=as.matrix(ODgenes[[1]])
+		  ODgenes=which(dummy[,1]==1)
+		  #print('Computing distances ...')
+		  D=compute.distances(expr.norm = expr.data.norm[,which(mycl==k)],N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size[which(mycl==k)],modality=modality)
+		  temp.clusters=bigscale.cluster(D,plot.clusters = FALSE,clustering.method = 'low.granularity',granularity.size=dim.cutoff,verbose=FALSE)$clusters #cut.depth=current.cutting,method.treshold = 0.2
+		  if (max(temp.clusters)>1) 
+			action.taken=1
+		  else
+			unclusterable[which(mycl==k)]=1
+		}
       
       if (create.distances==TRUE)
         {
@@ -3366,7 +3374,12 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   okay=setdiff(okay,skewed_genes)
   if (verbose)
     print(sprintf('Further reducing to %g geni after discarding skewed genes', length(okay)))
-
+	
+ if (length(okay)<100)
+    {
+    print('Returning no highly variable genes, too few genes, too much noise!')
+    return(NULL)
+    }
   # STEP1: local fit of expression and standard deviation
   expr.norm=expr.norm[okay,]
   gc()
