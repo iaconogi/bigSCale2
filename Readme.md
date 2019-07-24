@@ -134,7 +134,7 @@ viewSignatures(sce,selected.cluster=2)
 
 Now, the plot is the same as before, but in place of the signatures of coexpressed genes we see the markers of cluster 2 stratified by level of specificity. 
 If you read my paper [Iacono 2018](https://genome.cshlp.org/content/28/6/878) then you'll know what this means.
-Shortly, markers of level 1 are the most specific to a given cluster. Level 1 means that this 417 genes are expressed only in cluster 2 . However, shared markers are also very important in biology. Think to all the markers shared by neuronal cell types as opposed to glial cell types. Shared genes are represented in biSCale by markers of increasing levels.  Markers of level 2 (629 genes) are markers shared between cluster 2 and at most another cluster. Markers of level 3 are shared between cluster 2 and at most two other clusters, and so on. These markers of higher levels are typically lost by other computational tools.
+Shortly, markers of level 1 are the most specific to a given cluster. Level 1 means that this 417 genes are expressed only in cluster 2 . However, shared markers are also very important in biology. Think to all the markers shared by neuronal cell types as opposed to glial cell types. Shared genes are represented in biSCale by markers of increasing levels.  Markers of level 2 (629 genes) are markers shared between cluster 2 and at most another cluster. Markers of level 3 are shared shared between cluster 2 and at most two other clusters, and so on. These markers of higher levels are typically lost by other computational tools.
 
 
 ### Barplot of selected genes
