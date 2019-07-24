@@ -3,7 +3,7 @@ Type: Package
 Title: A framework for the analysis of single cell data (RNA-seq and
         ATAC-seq) including clustering,phenotyping,pseudotime and
         inferring gene regulatory networks.
-Version: 1.6
+Version: 1.7
 Date: 2019-01-31
 Author: Giovanni Iacono
 Maintainer: Giovanni Iacono <gio.iacono.work@gmail.com>
@@ -17,5 +17,5 @@ LinkingTo: Rcpp
 RoxygenNote: 6.1.1
 Encoding: UTF-8
 NeedsCompilation: yes
-Packaged: 2019-07-04 14:51:23 UTC; admin
+Packaged: 2019-07-24 10:48:06 UTC; admin
 Depends: R (>= 3.5.0)

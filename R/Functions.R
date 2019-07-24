@@ -1433,9 +1433,11 @@ bigscale.recursive.clustering = function (expr.data.norm,model,edges,lib.size,fr
   
 
 if (class(expr.data.norm)=='big.matrix')
+  {
   expr.data.norm=bigmemory::as.matrix(expr.data.norm)
-else
-  expr.data.norm=as.matrix(expr.data.norm)
+  expr.data.norm=Matrix::Matrix(expr.data.norm) 
+  }
+ 
 gc()
   
 
@@ -1485,23 +1487,25 @@ while(1){
     {
       #print('Computing Overdispersed genes ...')
       ODgenes=calculate.ODgenes(expr.data.norm[,which(mycl==k)],verbose = FALSE)
-	  if (is.null(ODgenes))
+      
+      if (is.null(ODgenes))
         {
         D=NA
         unclusterable[which(mycl==k)]=1   
         }
       else
-		{
-		  dummy=as.matrix(ODgenes[[1]])
-		  ODgenes=which(dummy[,1]==1)
-		  #print('Computing distances ...')
-		  D=compute.distances(expr.norm = expr.data.norm[,which(mycl==k)],N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size[which(mycl==k)],modality=modality)
-		  temp.clusters=bigscale.cluster(D,plot.clusters = FALSE,clustering.method = 'low.granularity',granularity.size=dim.cutoff,verbose=FALSE)$clusters #cut.depth=current.cutting,method.treshold = 0.2
-		  if (max(temp.clusters)>1) 
-			action.taken=1
-		  else
-			unclusterable[which(mycl==k)]=1
-		}
+        {
+        dummy=as.matrix(ODgenes[[1]])
+        ODgenes=which(dummy[,1]==1)
+        #print('Computing distances ...')
+        D=compute.distances(expr.norm = expr.data.norm[,which(mycl==k)],N_pct = model,edges = edges,driving.genes = ODgenes,lib.size = lib.size[which(mycl==k)],modality=modality)
+        temp.clusters=bigscale.cluster(D,plot.clusters = FALSE,clustering.method = 'low.granularity',granularity.size=dim.cutoff,verbose=FALSE)$clusters #cut.depth=current.cutting,method.treshold = 0.2
+        if (max(temp.clusters)>1) 
+          action.taken=1
+        else
+          unclusterable[which(mycl==k)]=1  
+        }
+      
       
       if (create.distances==TRUE)
         {
@@ -1725,6 +1729,143 @@ polish.graph = function (G)
 }
   
 
+#' ATAC-seq Gene regulatory network
+#'
+#' Infers the gene regulatory network from single cell ATAC-seq data
+#'
+#' @param expr.data matrix of expression counts. Works also with sparse matrices of the \pkg{Matrix} package.
+#' @param gene.names character of gene names, now it supports Gene Symbols or Ensembl, Mouse and Human.
+#' @param clustering type of clustering and correlations computed to infer the network.
+#' \itemize{
+#'  \item {\bold{recursive}} Best quality at the expenses of computational time. If the dataset is larger than 10-15K cells and is highly heterogeneous this can lead to very long computational times (24-48 hours depending of the hardware).
+#'  \item {\bold{direct}} Best trade-off between quality and computational time. If you want to get a quick output not much dissimilar from the top quality of \bold{recursive} one use this option. Can handle quickly also large datasets (>15-20K cells in 30m-2hours depending on hardware)
+#'  \item {\bold{normal}} To be used if the correlations (the output value \bold{cutoff.p}) detected with either \bold{direct} or \bold{recursive} are too low. At the moment, bigSCale displays a warning if the correlation curoff is lower than 0.8 and suggests to eithe use \bold{normal} clustering or increase the input parameter \bold{quantile.p}
+#' }
+#' @param quantile.p only the first \eqn{1 - quantile.p} correlations are used to create the edges of the network. If the networ is too sparse(dense) decrease(increase) \eqn{quantile.p}
+#' @param speed.preset Used only if  \code{clustering='recursive'} . It regulates the speed vs. accuracy of the Zscores calculations. To have a better network quality it is reccomended to use the default \bold{slow}.
+##' \itemize{
+#'   \item {\bold{slow}} {Highly reccomended, the best network quality but the slowest computational time.} 
+#'   \item {\bold{normal}} {A balance between network quality and computational time. }
+#'   \item {\bold{fast}} {Fastest computational time, worste network quality.}
+#' }
+#' @param previous.output previous output of \code{compute.network()} can be passed as input to evaluate networks with a different quantile.p without re-running the code. Check the online tutorial at https://github.com/iaconogi/bigSCale2.
+#' 
+#' @return  A list with the following items:
+#' \itemize{
+#' \item {\bold{centrality}} {Main output: a Data-frame with the network centrality (Degree,Betweenness,Closeness,PAGErank) for each gene(node) of the network}
+#' \item {\bold{graph}} {The regulatory network in iGraph object}
+#' \item {\bold{correlations}} {All pairwise correlations between genes. The correlation is an average between \emph{Pearson} and \emph{Spearman}. Note that it is stored in single precision format (to save memory space) using the package \pkg{float32}.To make any operation or plot on the correlations first transform it to the standard double precisione by running \code{correlations=dbl(correlations)} }
+#' \item {\bold{cutoff.p}} {The adptive cutoff used to select significant correlations}
+#' \item {\bold{tot.scores}} {The Z-scores over which the correlations are computed. The visually check the correlation between to genes \emph{i} and \emph{j} run  \code{plot(tot.scores[,i],tot.scores[,j])} }
+#' \item {\bold{clusters}} {The clusters in which the cells have been partitioned}
+#' \item {\bold{model}} {Bigscale numerical model of the noise}
+#' }
+#'
+#'
+#' @examples
+#' out=compute.network(expr.data,gene.names)
+#'
+#' @export
+
+
+compute.atac.network = function (expr.data,feature.names,quantile.p=0.998){
+  
+  clustering='direct'
+  
+  if (ncol(expr.data)>20000)
+      warning('It seems you are running compute.network on a kind of large dataset, it it failed for memory issues you should try the compute.network for large datasets')
+
+  print('1) Pre-processing) Removing null features ')
+  exp.genes=which(Matrix::rowSums(expr.data)>0)
+  if ((nrow(expr.data)-length(exp.genes))>0)
+      print(sprintf("Discarding %g peaks with all zero values",nrow(expr.data)-length(exp.genes)))
+  expr.data=expr.data[exp.genes,]
+  gc()
+  feature.names=feature.names[exp.genes]
+  expr.data=Matrix::Matrix(expr.data)
+  tot.cells=Matrix::rowSums(expr.data)
+  
+  print('2) Clustering ...')
+  
+  if (clustering=="direct")
+      mycl=bigscale.recursive.clustering(expr.data.norm = expr.data,fragment=TRUE,modality = 'jaccard')$mycl
+
+  tot.clusters=max(mycl)
+    
+  
+  pass.cutoff=which(tot.cells>(max(15,ncol(expr.data)*0.005)))
+  feature.names=feature.names[pass.cutoff]
+    
+  print(sprintf('Assembling cluster average expression for %g features detected in at least %g cells',length(pass.cutoff),max(15,ncol(expr.data)*0.005)))
+  tot.scores=matrix(0,length(pass.cutoff),tot.clusters)
+  for (k in 1:(tot.clusters))
+        tot.scores[,k]=Rfast::rowmeans(as.matrix(expr.data[pass.cutoff,which(mycl==k)]))
+  tot.scores=log2(tot.scores+1)
+  tot.scores=t(tot.scores)
+
+  o=gc()
+  print(o)
+  print('Calculating Pearson ...')
+  rm(list=setdiff(setdiff(ls(), lsf.str()), c('tot.scores','quantile.p','feature.names','tot.scores','mycl')))
+  o=gc()
+  print(o)
+  
+  Dp=Rfast::cora(tot.scores)
+  o=gc()
+  print(o)
+  print('Calculating quantile ...')
+  cutoff.p=quantile(Dp,quantile.p,na.rm=TRUE)
+  print(sprintf('Using %f as cutoff for pearson correlation',cutoff.p))
+  
+
+  Dp=float::fl(Dp)
+  gc()
+  
+  print('Calculating Spearman ...')
+  Ds=cor(x = tot.scores,method = "spearman")
+  Ds=float::fl(Ds)
+  gc()
+  
+  print('Calculating the significant links ...')
+  rm(list=setdiff(setdiff(ls(), lsf.str()), c("Dp","Ds","cutoff.p",'feature.names','tot.scores','mycl')))  
+  gc()
+  network=((Dp>cutoff.p & Ds>0.7) | (Dp<(-cutoff.p) & Ds<(-0.7)))
+  diag(network)=FALSE
+  network[is.na(network)]=FALSE
+  degree=Rfast::rowsums(network)
+  to.include=which(degree>0)
+  
+  G=igraph::graph_from_adjacency_matrix(adjmatrix = network[to.include,to.include],mode = 'undirected')
+  G=igraph::set_vertex_attr(graph = G,name = "name", value = feature.names[to.include])
+  rm(network)
+  gc()
+  
+  
+  print('Calculating the final score ...')
+  Df=(Ds+Dp)/float::fl(2)
+  rm(Dp)
+  rm(Ds)
+  gc()
+  rownames(Df)=feature.names
+  colnames(Df)=feature.names
+  
+  
+  print(sprintf('Inferred the raw regulatory network: %g nodes and %g edges (ratio E/N)=%f',length(igraph::V(G)),length(igraph::E(G)),length(igraph::E(G))/length(igraph::V(G))))
+  
+  
+  print('Computing the centralities')
+  Betweenness=igraph::betweenness(graph = G,directed=FALSE,normalized = TRUE)
+  Degree=igraph::degree(graph = G)
+  PAGErank=igraph::page_rank(graph = G,directed = FALSE)$vector
+  Closeness=igraph::closeness(graph = G,normalized = TRUE)
+  
+  if (cutoff.p<0.7)
+    warning('bigSCale: the cutoff for the correlations seems very low. You should either increase the parameter quantile.p or select clustering=normal (you need to run the whole code again in both options,sorry!). For more information check the quick guide online')
+  
+  return(list(graph=G,correlations=Df,tot.scores=tot.scores,clusters=mycl,centrality=as.data.frame(cbind(Degree,Betweenness,Closeness,PAGErank)),cutoff.p=cutoff.p))
+}
+
+
   
 #' Gene regulatory network
 #'
@@ -1778,7 +1919,6 @@ if (is.na(previous.output))
   # Part 1) Initial processing of the dataset  ************************************************************
   print('Pre-processing) Removing null rows ')
   exp.genes=which(Rfast::rowsums(expr.data)>0)
-  exp.gene.out<<-exp.genes
   if ((nrow(expr.data)-length(exp.genes))>0)
     print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
   expr.data=expr.data[exp.genes,]
@@ -2558,7 +2698,7 @@ else
 
 
 
-
+lib.size=lib.size[c(group1,group2)]
 group1=c(1:length(group1))
 group2=c((length(group1)+1):(length(group1)+length(group2)))
 
@@ -2697,8 +2837,7 @@ if (critical.value>indA.size/10)
   if (critical.value>indA.size/10)
     stop(sprintf('Critical value way too high (%g): Stopping the analysis!!',critical.value))
 }
-  
-  
+
 #print('Proceding to allocate large vector')
 vector=c(0:indA.size)/10 # increase if code blocks, It can assign a gene exprssion level up to 10000000
 gc()
@@ -2948,6 +3087,13 @@ return(list(clusters=clusters,ht=ht))
 
 compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality='bigscale'){
   
+  if (modality=='jaccard')
+      {
+      print("Calculating Jaccard distances ...")
+      D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::Matrix( t(as.matrix(expr.norm[driving.genes,]>0)), sparse = T  )))
+      return(D)
+      }  
+  
   # normalize expression data for library size without scaling to the overall average depth
   if (class(expr.norm)=='big.matrix')
     expr.driving.norm=bigmemory::as.matrix(expr.norm[driving.genes,])/mean(lib.size)
@@ -2960,9 +3106,6 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   if (modality=='correlation')
     {
     print("Calculating normalized-transformed matrix ...")
-    #expr.driving.norm.out<<-expr.driving.norm
-    # removing genes never expressed
-    #cacca=Rfast::rowsums(is.na(expr.norm.transformed))
     expr.norm.transformed = transform.matrix(expr.driving.norm , 2 )
     gc()
     print("Calculating Pearson correlations ...")
@@ -2972,16 +3115,7 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
     return(D)
   }
   
-  if (modality=='jaccard')
-  {
-    #expr.driving.norm=expr.driving.norm*mean(lib.size)
-    print("Calculating Jaccard distances ...")
-    input.jaccard<<-expr.driving.norm
-    D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::Matrix(t(expr.driving.norm>0),sparse = T)))
-    #D=as.matrix(dist(D)) # Euclidean Distance
-    #D=Pdistance(expr.driving.norm)
-    return(D)
-  }  
+  
   
   
   if (!hasArg(genes.discarded)) genes.discarded =c()
@@ -3339,8 +3473,9 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   min.cells=max( 15,  round(0.002*length(expr.norm[1,]))) 
   skwed.cells=max( 5,  round(0.002*length(expr.norm[1,]))) 
   
-  if (verbose)
+  #if (verbose)
     print(sprintf('Analyzing %g cells for ODgenes, min_ODscore=%.2f',ncol(expr.norm),min_ODscore))
+  
   
   # Discarding skewed genes
   if (verbose)
@@ -3374,12 +3509,13 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   okay=setdiff(okay,skewed_genes)
   if (verbose)
     print(sprintf('Further reducing to %g geni after discarding skewed genes', length(okay)))
-	
- if (length(okay)<100)
+
+  if (length(okay)<100)
     {
     print('Returning no highly variable genes, too few genes, too much noise!')
     return(NULL)
     }
+  
   # STEP1: local fit of expression and standard deviation
   expr.norm=expr.norm[okay,]
   gc()

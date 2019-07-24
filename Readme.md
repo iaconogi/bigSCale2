@@ -13,7 +13,8 @@
 If you used bigSCale2 please cite out papers [Iacono 2018](https://genome.cshlp.org/content/28/6/878) and [Iacono 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1713-4).**
 
 
-**UPDATES**
+**UPDATES**<br />
+v1.7 (04/07/2019): Fixed a bug inside the differential expression code. You might want to re-run your analysis (including networks, clustering, phenotyping ....) to have better results. Thanks to JasonLiZhou for signalling it.<br />
 v1.6 (04/07/2019): Added a pipeline for single cell ATAC-seq data.<br />
 v1.5 (28/06/2019): Fixed a bug in the iCells which was causing an excessive use of memory usage.<br />
 
