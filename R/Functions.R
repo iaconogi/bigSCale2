@@ -1525,9 +1525,10 @@ while(1){
     }
   }
   
+  cat(sprintf('\nRecursive clustering, after round %g obtained %g clusters',tot.recursive,max(mycl.new)))
   tot.recursive=tot.recursive+1  
   
-  cat(sprintf('\nRecursive clustering, after round %g obtained %g clusters',tot.recursive,max(mycl.new)))
+  
   # if (modality=='jaccard' & tot.recursive==5)
   # {
   #   cat(sprintf('\n\nYou are analyzing ATAC-seq data, I stop the clustering to avoid creating too many clusters. If you want to customize the analysis with more/less rounds of recursive contact the developer at gio.iacono.work@gmail.com'))
