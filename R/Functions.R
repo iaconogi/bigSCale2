@@ -2006,11 +2006,11 @@ if (is.na(previous.output))
   else
   {
     print('It appears you want to tweak previously created networks with a different quantile.p, proceeding ....')
-    tot.scores=out$tot.scores
-    gene.names=colnames(out$correlations)
-    mycl=out$clusters
-    model=out$model
-    rm(out)
+    tot.scores=previous.output$tot.scores
+    gene.names=colnames(previous.output$correlations)
+    mycl=previous.output$clusters
+    model=previous.output$model
+    rm(previous.output)
     gc()
   }
   
@@ -2696,8 +2696,8 @@ if (class(expr.norm)=='big.matrix')
 else
   expr.norm=as.matrix(expr.norm[,c(group1,group2)])
 
-tot.lib.size=lib.size
 
+tot.lib.size=lib.size
 lib.size=lib.size[c(group1,group2)]
 group1=c(1:length(group1))
 group2=c((length(group1)+1):(length(group1)+length(group2)))
