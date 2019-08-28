@@ -1131,7 +1131,7 @@ else
 
 
 # all pre-proc data is now available. proceeding to convolute one piece at a time
-rm(list=setdiff(setdiff(ls(), lsf.str()), c('file.dir','N_pct','edges','driving.genes','library.size','icells.chuncks.nz','avg.genes.cell','tot.cells','icells.chuncks','q.cutoff.narrow','q.cutoff.large','sample.conditions','pooling.factor','verbose','neighbours')))
+rm(list=setdiff(setdiff(ls(), lsf.str()), c('file.dir','N_pct','edges','driving.genes','library.size','icells.chuncks.nz','avg.genes.cell','tot.cells','icells.chuncks','q.cutoff.narrow','q.cutoff.large','sample.conditions','pooling.factor','verbose','neighbours','intermediate')))
 
 pointer=0
 round=1
@@ -1799,8 +1799,8 @@ compute.atac.network = function (expr.data,feature.names,quantile.p=0.998){
   print(sprintf('Assembling cluster average expression for %g features detected in at least %g cells',length(pass.cutoff),max(15,ncol(expr.data)*0.005)))
   tot.scores=matrix(0,length(pass.cutoff),tot.clusters)
   for (k in 1:(tot.clusters))
-        tot.scores[,k]=Rfast::rowmeans(as.matrix(expr.data[pass.cutoff,which(mycl==k)]))
-  tot.scores=log2(tot.scores+1)
+        tot.scores[,k]=Rfast::rowmeans(as.matrix(expr.data[pass.cutoff,which(mycl==k)]>0))
+  #tot.scores=log2(tot.scores+1)
   tot.scores=t(tot.scores)
 
   o=gc()
@@ -3480,7 +3480,7 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   # Discarding skewed genes
   if (verbose)
     print('Discarding skewed genes')
-  expr.row.sorted=Rfast::sort_mat(expr.norm, by.row = TRUE) #MEMORY ALERT with Rfast::sort_mat
+  expr.row.sorted=Rfast::rowSort(expr.norm) #MEMORY ALERT with Rfast::sort_mat
   a=Rfast::rowmeans(expr.row.sorted[,(num.samples-skwed.cells):num.samples])
   La=log2(a)
   B=Rfast::rowVars(expr.row.sorted[,(num.samples-skwed.cells):num.samples], suma = NULL, std = TRUE)/a
@@ -3510,7 +3510,7 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   if (verbose)
     print(sprintf('Further reducing to %g geni after discarding skewed genes', length(okay)))
 
-  if (length(okay)<100)
+  if (length(okay)<200)
     {
     print('Returning no highly variable genes, too few genes, too much noise!')
     return(NULL)
@@ -3518,6 +3518,7 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   
   # STEP1: local fit of expression and standard deviation
   expr.norm=expr.norm[okay,]
+  #expr.norm.odgenes<<-expr.norm
   gc()
   a=Rfast::rowmeans(expr.norm)
   La=log2(a)
