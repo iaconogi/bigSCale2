@@ -9,8 +9,7 @@ Author: Giovanni Iacono
 Maintainer: Giovanni Iacono <gio.iacono.work@gmail.com>
 Description: A framework for the analysis of single cell data including clustering,phenotyping,pseudotime and inferring gene regulatory networks.
 License: GPL (>= 2)
-Imports: Rcpp, SingleCellExperiment, Rfast, Rtsne, float, ggplot2, zoo,
-        randomcoloR, dendextend, BioQC, igraph, org.Hs.eg.db,
+Imports: Rcpp, SingleCellExperiment, Rfast, Rtsne, float, ggplot2, zoo, dendextend, BioQC, igraph, org.Hs.eg.db,
         org.Mm.eg.db, Matrix, RgoogleMaps, ggbeeswarm, ggpubr, plotly,
         heatmap3, progress, bigmemory, R.utils
 LinkingTo: Rcpp
