@@ -1,3 +1,89 @@
+pharse.10x.peaks = function(file)
+{
+  peaks = read.delim(file, header=FALSE, stringsAsFactors=FALSE) 
+  good.ix=rep(0,nrow(peaks))
+  feature.names=rep('',nrow(peaks))
+  feature.names=c()
+  for (k in 1:nrow(peaks))
+  {
+  if (peaks[k,4]!='distal')
+      
+    {
+    types=unlist(strsplit(peaks[k,4], ";"))
+    genes=unlist(strsplit(peaks[k,2], ";"))
+    for ( h in 1:length(types))
+    {
+      if (types[h]=='promoter')
+      {
+        good.ix[k]=1
+        if(h==1) feature.names[k]=genes[h]
+        else { feature.names[k]=paste(feature.names[k],';', genes[h]) }
+      }
+    }
+    
+    }
+    
+    
+    
+  }
+  return(list(feature.names=feature.names[which(good.ix==1)],good.ix=which(good.ix==1)))
+}
+
+pick.sequences = function(file, numbers)
+{
+  peaks = read.delim(file, header=FALSE, stringsAsFactors=FALSE) 
+  sequences=getSeq(Hsapiens, as.character(peaks[numbers,1]), start=peaks[numbers,2],end=peaks[numbers,3])
+  
+}
+
+sub.communities <- function(G,dim,module)
+{
+  mycl.new=rep(0,length(igraph::V(G)))
+  unclusterable=mycl.new  
+  
+  #node.names=V(G)$names
+  #node.ix=c(1:length(igraph::V(G)))
+  
+  mycl=cluster_louvain(G,weights = NULL)$membership
+  cat(sprintf('\n Starting from %g clusters',max(mycl)))
+  #current.nodes=node.ix
+  round=1
+  while (1)
+  {
+    action.taken=0
+    for (k in 1:max(mycl))
+    {
+      ix=which(mycl==k)  
+      if (length(ix)>dim & sum(unclusterable[ix])==0 )
+      {
+        G.sub=induced.subgraph(graph = G,vids = which(mycl == k))
+        out=cluster_louvain(G.sub,weights = NULL)$membership
+        mycl.new[ix]=out+max(mycl.new)
+        action.taken=1
+      }
+      else
+      {
+        mycl.new[ix]=1+max(mycl.new)
+        unclusterable[ix]=1 
+      }
+    }
+    round=round+1
+    cat(sprintf('\n Round %g) Obtained %g clusters',round,max(mycl.new)))  
+    if (action.taken==0) 
+      break
+    else
+    {
+      mycl=mycl.new
+      mycl.new=rep(0,length(igraph::V(G)))
+    }
+  }
+  
+  
+  return(mycl)
+  
+}
+
+
 
 Pdistance <- function(counts) {
 
@@ -1768,9 +1854,16 @@ polish.graph = function (G)
 #' @export
 
 
-compute.atac.network = function (expr.data,feature.names,quantile.p=0.998){
+compute.atac.network = function (expr.data,feature.file,quantile.p=0.998){
   
   clustering='direct'
+  print('Pharsing the list of 10x annotated peaks')
+  out=pharse.10x.peaks(feature.file)
+  print(sprintf('Found %g peaks in promoters',length(out$good.ix)))
+  expr.data=expr.data[out$good.ix,]
+  feature.names=out$feature.names
+  rm(out)
+  gc()
   
   if (ncol(expr.data)>20000)
       warning('It seems you are running compute.network on a kind of large dataset, it it failed for memory issues you should try the compute.network for large datasets')
@@ -2990,7 +3083,7 @@ gc()
     error('Error of the stupid biSCale2 programmer!')
   
 ht=hclust(as.dist(D),method='ward.D')
-
+ht$height=round(ht$height,6)
 
 
 if (is.na(cut.depth) & clustering.method=='high.granularity')
@@ -3013,8 +3106,10 @@ if (is.na(cut.depth) & clustering.method=='high.granularity')
 if (is.na(cut.depth) & clustering.method=='low.granularity')
 {
 
+  
   result=c()
   progressive.depth=c(90, 80, 70, 60, 50, 40, 30, 20, 15, 10)
+  
   for (k in 1:length(progressive.depth))
   {
     mycl <- cutree(ht, h=max(ht$height)*progressive.depth[k]/100)
