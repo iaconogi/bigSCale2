@@ -2557,18 +2557,20 @@ bigSCale.tsne.plot = function (tsne.data,color.by,fig.title,colorbar.title,clust
 set.quantitative.palette = function(tot.el){
   
   gc()
-  
-  if (tot.el<3)
-    palette=randomcoloR::distinctColorPalette(tot.el)
-  else
-    if (tot.el<=11)
+  if (tot.el<=11)
       {
       palette=c('#ffe119', '#4363d8', '#f58231', '#e6beff', '#800000', '#000075', '#a9a9a9', '#000000','#FF0000','#fffac8','#f032e6')
       palette=palette[1:tot.el]
       #https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
       }
     else
-      palette=randomcoloR::distinctColorPalette(tot.el)
+    {
+      palette=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabebe', '#469990', '#e6beff', '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9', '#ffffff', '#000000')
+      if (tot.el>length(palette))
+        stop('You have more than 22 clusters and I cannot find enough colors for them. Contact the developer at gio.iacono.work@gmail.com to fix this issue')
+      palette=palette[1:tot.el]
+      #https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
+    }
 
     
   
