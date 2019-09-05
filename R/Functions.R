@@ -1,3 +1,59 @@
+#' bigscale.generate.report
+#' @param sce The single cell object for which you want to generate the report
+#' @param file.name Directory and/or name of the excel file containing the formatted report
+#' @examples
+#' bigscale.generate.report('report.xlsx')
+#' @export
+
+
+bigscale.generate.report = function(sce,file.name)
+{
+  export.data=as.data.frame(as.numeric(table(getClusters(sce))))
+  
+  colnames(export.data)='Cell number'
+  
+  avg.lib.size=c()
+  dummy=sizeFactors(sce)
+  for (k in 1:max(getClusters(sce)))
+    avg.lib.size[k]=mean(dummy[which(getClusters(sce)==k)])
+  
+  avg.det.genes=c()
+  for (k in 1:max(getClusters(sce)))
+    avg.det.genes[k]=mean(Rfast::colsums(as.matrix(normcounts(sce)[,which(getClusters(sce)==k)]>0)))
+  
+  export.data$Average_Library_Size=avg.lib.size
+  export.data$Average_Detected_Genes=avg.det.genes
+  export.data$Complexity=avg.lib.size/avg.det.genes
+  
+  export.data$Markers_Lv1=sce@int_metadata$Mlist.counts$Markers_LV1
+  export.data$Markers_Lv2=sce@int_metadata$Mlist.counts$Markers_LV2
+  
+  #R.utils::copyFile(paste(system.file(package="bigSCale"),'/data/template.xlsx',sep = ''),file.name)
+  
+  
+  #Level 1 markers
+  Mlist=getMarkers(sce)
+  to.write=Mlist[[1,1]][1,]
+  for (k in 2:max(getClusters(sce)))
+    to.write=rbind(to.write,Mlist[[k,1]][1,])
+ export.data=cbind(export.data,to.write[,2:4])
+  
+  
+  #Level 1 markers
+  to.write=Mlist[[1,2]][1,]
+  for (k in 2:max(getClusters(sce)))
+    to.write=rbind(to.write,Mlist[[k,2]][1,])
+  export.data=cbind(export.data,to.write[,2])
+  
+  names=colnames(export.data)
+  names[7]='Best Lv1'
+  names[10]='Best Lv2'
+  
+  colnames(export.data)=names
+  xlsx::write.xlsx(export.data,file.name)
+}
+
+
 pharse.10x.peaks = function(file)
 {
   peaks = read.delim(file, header=FALSE, stringsAsFactors=FALSE) 
@@ -2565,11 +2621,13 @@ set.quantitative.palette = function(tot.el){
       }
     else
     {
-      palette=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabebe', '#469990', '#e6beff', '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9', '#ffffff', '#000000')
-      if (tot.el>length(palette))
-        stop('You have more than 22 clusters and I cannot find enough colors for them. Contact the developer at gio.iacono.work@gmail.com to fix this issue')
-      palette=palette[1:tot.el]
+      #palette=c('#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabebe', '#469990', '#e6beff', '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9', '#ffffff', '#000000')
+      #if (tot.el>length(palette))
+      #  stop('You have more than 22 clusters and I cannot find enough colors for them. Contact the developer at gio.iacono.work@gmail.com to fix this issue')
+      #palette=palette[1:tot.el]
       #https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
+      color = grDevices::colors()[grep('gr(a|e)y', grDevices::colors(), invert = T)]
+      palette=sample(color, tot.el, replace = FALSE)
     }
 
     
