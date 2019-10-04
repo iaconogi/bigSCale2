@@ -4,7 +4,7 @@
 \alias{compute.atac.network}
 \title{ATAC-seq Gene regulatory network}
 \usage{
-compute.atac.network(expr.data, feature.names, quantile.p = 0.998)
+compute.atac.network(expr.data, feature.file, quantile.p = 0.998)
 }
 \arguments{
 \item{expr.data}{matrix of expression counts. Works also with sparse matrices of the \pkg{Matrix} package.}

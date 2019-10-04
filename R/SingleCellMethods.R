@@ -1192,7 +1192,7 @@ setMethod(f="RecursiveClustering",
 
 
 setGeneric(name="bigscaleDE",
-           def=function(object,group1,group2,speed.preset='slow')
+           def=function(object,group1,group2,speed.preset='slow',cap.ones=FALSE)
            {
              standardGeneric("bigscaleDE")
            }
@@ -1200,9 +1200,14 @@ setGeneric(name="bigscaleDE",
 
 setMethod(f="bigscaleDE",
           signature="SingleCellExperiment",
-          definition=function(object,group1,group2,speed.preset='slow')
+          definition=function(object,group1,group2,speed.preset='slow',cap.ones=FALSE)
           {
-            out=bigscale.DE(expr.norm = normcounts(object), N_pct = object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object), group1 = group1,group2 = group2,speed.preset = speed.preset)
+            expr.norm = normcounts(object)
+            
+            if (cap.ones==T)
+              expr.norm[expr.norm>0]=1
+            
+            out=bigscale.DE(expr.norm, N_pct = object@int_metadata$model, edges = object@int_metadata$edges, lib.size = sizeFactors(object), group1 = group1,group2 = group2,speed.preset = speed.preset)
             out=as.data.frame(out)
             gene.names=rownames(object)
             if(length(unique(gene.names)) < length(gene.names))

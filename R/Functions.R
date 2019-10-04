@@ -56,9 +56,9 @@ bigscale.generate.report = function(sce,file.name)
 
 pharse.10x.peaks = function(file)
 {
-  peaks = read.delim(file, header=FALSE, stringsAsFactors=FALSE) 
+  peaks = read.delim(file, header=FALSE, stringsAsFactors=FALSE)
+  peaks=peaks[-1,]
   good.ix=rep(0,nrow(peaks))
-  feature.names=rep('',nrow(peaks))
   feature.names=c()
   for (k in 1:nrow(peaks))
   {
@@ -72,7 +72,7 @@ pharse.10x.peaks = function(file)
       if (types[h]=='promoter')
       {
         good.ix[k]=1
-        if(h==1) feature.names[k]=genes[h]
+        if (h==1) feature.names[k]=genes[h]
         else { feature.names[k]=paste(feature.names[k],';', genes[h]) }
       }
     }
@@ -85,11 +85,13 @@ pharse.10x.peaks = function(file)
   return(list(feature.names=feature.names[which(good.ix==1)],good.ix=which(good.ix==1)))
 }
 
-pick.sequences = function(file, numbers)
+pick.sequences = function(file, numbers=NA)
 {
+  library("BSgenome.Hsapiens.UCSC.hg19")
   peaks = read.delim(file, header=FALSE, stringsAsFactors=FALSE) 
+  if (is.na(numbers[1]))
+    numbers=c(1:nrow(peaks))
   sequences=getSeq(Hsapiens, as.character(peaks[numbers,1]), start=peaks[numbers,2],end=peaks[numbers,3])
-  
 }
 
 sub.communities <- function(G,dim,module)
@@ -100,7 +102,7 @@ sub.communities <- function(G,dim,module)
   #node.names=V(G)$names
   #node.ix=c(1:length(igraph::V(G)))
   
-  mycl=cluster_louvain(G,weights = NULL)$membership
+  mycl=igraph::cluster_louvain(G,weights = NULL)$membership
   cat(sprintf('\n Starting from %g clusters',max(mycl)))
   #current.nodes=node.ix
   round=1
@@ -112,8 +114,8 @@ sub.communities <- function(G,dim,module)
       ix=which(mycl==k)  
       if (length(ix)>dim & sum(unclusterable[ix])==0 )
       {
-        G.sub=induced.subgraph(graph = G,vids = which(mycl == k))
-        out=cluster_louvain(G.sub,weights = NULL)$membership
+        G.sub=igraph::induced.subgraph(graph = G,vids = which(mycl == k))
+        out=igraph::cluster_louvain(G.sub,weights = NULL)$membership
         mycl.new[ix]=out+max(mycl.new)
         action.taken=1
       }
@@ -1918,6 +1920,7 @@ compute.atac.network = function (expr.data,feature.file,quantile.p=0.998){
   print(sprintf('Found %g peaks in promoters',length(out$good.ix)))
   expr.data=expr.data[out$good.ix,]
   feature.names=out$feature.names
+  peaks.in.use=out$good.ix
   rm(out)
   gc()
   
@@ -1955,7 +1958,7 @@ compute.atac.network = function (expr.data,feature.file,quantile.p=0.998){
   o=gc()
   print(o)
   print('Calculating Pearson ...')
-  rm(list=setdiff(setdiff(ls(), lsf.str()), c('tot.scores','quantile.p','feature.names','tot.scores','mycl')))
+  rm(list=setdiff(setdiff(ls(), lsf.str()), c('tot.scores','quantile.p','feature.names','tot.scores','mycl','peaks.in.use')))
   o=gc()
   print(o)
   
@@ -1976,7 +1979,7 @@ compute.atac.network = function (expr.data,feature.file,quantile.p=0.998){
   gc()
   
   print('Calculating the significant links ...')
-  rm(list=setdiff(setdiff(ls(), lsf.str()), c("Dp","Ds","cutoff.p",'feature.names','tot.scores','mycl')))  
+  rm(list=setdiff(setdiff(ls(), lsf.str()), c("Dp","Ds","cutoff.p",'feature.names','tot.scores','mycl','peaks.in.use')))  
   gc()
   network=((Dp>cutoff.p & Ds>0.7) | (Dp<(-cutoff.p) & Ds<(-0.7)))
   diag(network)=FALSE
@@ -2001,17 +2004,16 @@ compute.atac.network = function (expr.data,feature.file,quantile.p=0.998){
   
   print(sprintf('Inferred the raw regulatory network: %g nodes and %g edges (ratio E/N)=%f',length(igraph::V(G)),length(igraph::E(G)),length(igraph::E(G))/length(igraph::V(G))))
   
-  
   print('Computing the centralities')
   Betweenness=igraph::betweenness(graph = G,directed=FALSE,normalized = TRUE)
   Degree=igraph::degree(graph = G)
   PAGErank=igraph::page_rank(graph = G,directed = FALSE)$vector
   Closeness=igraph::closeness(graph = G,normalized = TRUE)
-  
+
   if (cutoff.p<0.7)
     warning('bigSCale: the cutoff for the correlations seems very low. You should either increase the parameter quantile.p or select clustering=normal (you need to run the whole code again in both options,sorry!). For more information check the quick guide online')
   
-  return(list(graph=G,correlations=Df,tot.scores=tot.scores,clusters=mycl,centrality=as.data.frame(cbind(Degree,Betweenness,Closeness,PAGErank)),cutoff.p=cutoff.p))
+  return(list(graph=G,correlations=Df,tot.scores=tot.scores,clusters=mycl,centrality=as.data.frame(cbind(Degree,Betweenness,Closeness,PAGErank)),cutoff.p=cutoff.p,peaks.in.use=peaks.in.use[to.include]))
 }
 
 
@@ -3623,6 +3625,7 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   
   #start.time <- Sys.time() 
   
+    
   num.samples=ncol(expr.norm) 
   num.genes=nrow(expr.norm) 
   min.cells=max( 15,  round(0.002*length(expr.norm[1,]))) 
@@ -4181,7 +4184,6 @@ if ('counts' %in% assayNames(sce))
  if (compute.pseudo)
     {
     print('PASSAGE 9) Storing the pseudotime order ...')
-    sce=storePseudo(sce)
     }
    
 
@@ -4253,10 +4255,10 @@ bigscale.atac = function (sce, memory.save=FALSE, fragment=0.1){
     sce = storeTransformed(sce)
   }
   
-  # sce=setODgenes(sce,min_ODscore = 4)
-  # sce=setDistances(sce,modality='jaccard')
-  # sce=setClusters(sce)
-  sce=RecursiveClustering(sce,modality='jaccard',fragment=fragment)
+  sce=setODgenes(sce,min_ODscore = 2.33)
+  sce=setDistances(sce,modality='pca')
+  sce=setClusters(sce)
+  # sce=RecursiveClustering(sce,modality='jaccard',fragment=fragment)
 
   print('PASSAGE 7) Computing TSNE ...')
   sce=storeTsne(sce)

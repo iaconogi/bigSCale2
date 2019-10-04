@@ -4,7 +4,8 @@
 \alias{bigscaleDE}
 \title{Differential Expression}
 \usage{
-bigscaleDE(object, group1, group2, speed.preset = "slow")
+bigscaleDE(object, group1, group2, speed.preset = "slow",
+  cap.ones = FALSE)
 }
 \arguments{
 \item{object}{object of the SingleCellExperiment class.}
