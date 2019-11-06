@@ -1,3 +1,100 @@
+#' bigscale.toCytoscape
+#' @param G The graph in igraph format previoulsy calculated with compute.network
+#' @param file.name Directory and/or name of the Cytoscape file 
+#' @examples
+#' bigscale.toCytoscape(G,'graph.json')
+#' @export
+
+toCytoscape <- function (G, file.name) {
+  # Extract graph attributes
+  library(igraph)
+  graph_attr = graph.attributes(G)
+  
+  # Extract nodes
+  node_count = length(V(G))
+  if('name' %in% list.vertex.attributes(G)) {
+    V(G)$id <- V(G)$name
+  } else {
+    V(G)$id <- as.character(c(1:node_count))
+  }
+  
+  nodes <- V(G)
+  v_attr = vertex.attributes(G)
+  v_names = list.vertex.attributes(G)
+  
+  nds <- array(0, dim=c(node_count))
+  for(i in 1:node_count) {
+    if(i %% 1000 == 0) {
+      print(i)
+    }
+    nds[[i]] = list(data = mapAttributes(v_names, v_attr, i))
+  }
+  
+  edges <- get.edgelist(G)
+  edge_count = ecount(G)
+  e_attr <- edge.attributes(G)
+  e_names = list.edge.attributes(G)
+  
+  attr_exists = FALSE
+  e_names_len = 0
+  if(identical(e_names, character(0)) == FALSE) {
+    attr_exists = TRUE
+    e_names_len = length(e_names)
+  }
+  e_names_len <- length(e_names)
+  
+  eds <- array(0, dim=c(edge_count))
+  for(i in 1:edge_count) {
+    st = list(source=toString(edges[i,1]), target=toString(edges[i,2]))
+    
+    # Extract attributes
+    if(attr_exists) {
+      eds[[i]] = list(data=c(st, mapAttributes(e_names, e_attr, i)))
+    } else {
+      eds[[i]] = list(data=st)
+    }
+    
+    if(i %% 1000 == 0) {
+      print(i)
+    }
+  }
+  
+  el = list(nodes=nds, edges=eds)
+  
+  x <- list(data = graph_attr, elements = el)
+  print("Done.  Writing Json...")
+  #return (toJSON(x))
+  
+  #merda<<-jsonlite::toJSON(x)
+  fileConn<-file(file.name)
+  writeLines(RJSONIO::toJSON(x), fileConn)
+  close(fileConn)
+  
+  
+}
+
+
+mapAttributes <- function(attr.names, all.attr, i) {
+  attr = list()
+  cur.attr.names = attr.names
+  attr.names.length = length(attr.names)
+  
+  for(j in 1:attr.names.length) {
+    if(is.na(all.attr[[j]][i]) == FALSE) {
+      #       attr[j] = all.attr[[j]][i]
+      attr <- c(attr, all.attr[[j]][i])
+    } else {
+      cur.attr.names <- cur.attr.names[cur.attr.names != attr.names[j]]
+    }
+  }
+  names(attr) = cur.attr.names
+  return (attr)
+}
+
+
+
+
+
 #' bigscale.generate.report
 #' @param sce The single cell object for which you want to generate the report
 #' @param file.name Directory and/or name of the excel file containing the formatted report
@@ -54,7 +151,8 @@ bigscale.generate.report = function(sce,file.name)
 }
 
 
-pharse.10x.peaks = function(file)
+
+pharse.10x.peaks = function(file,keep='promoter',reject='distal')
 {
   peaks = read.delim(file, header=FALSE, stringsAsFactors=FALSE)
   peaks=peaks[-1,]
@@ -62,28 +160,25 @@ pharse.10x.peaks = function(file)
   feature.names=c()
   for (k in 1:nrow(peaks))
   {
-  if (peaks[k,4]!='distal')
-      
+    if (peaks[k,4]!=reject)
     {
-    types=unlist(strsplit(peaks[k,4], ";"))
-    genes=unlist(strsplit(peaks[k,2], ";"))
-    for ( h in 1:length(types))
-    {
-      if (types[h]=='promoter')
+      types=unlist(strsplit(peaks[k,4], ";"))
+      genes=unlist(strsplit(peaks[k,2], ";"))
+      for ( h in 1:length(types))
       {
-        good.ix[k]=1
-        if (h==1) feature.names[k]=genes[h]
-        else { feature.names[k]=paste(feature.names[k],';', genes[h]) }
+        if (types[h]==keep)
+        {
+          good.ix[k]=1
+          if (h==1) feature.names[k]=genes[h]
+          else { feature.names[k]=paste(feature.names[k],';', genes[h]) }
+        }
       }
     }
-    
-    }
-    
-    
-    
   }
   return(list(feature.names=feature.names[which(good.ix==1)],good.ix=which(good.ix==1)))
 }
+
+
 
 pick.sequences = function(file, numbers=NA)
 {
@@ -2235,6 +2330,11 @@ Degree=igraph::degree(graph = G)
 PAGErank=igraph::page_rank(graph = G,directed = FALSE)$vector
 Closeness=igraph::closeness(graph = G,normalized = TRUE)
 
+G=igraph::set.vertex.attribute(graph = G,name = 'bigSCale.Degree',value = Degree)
+G=igraph::set.vertex.attribute(graph = G,name = 'bigSCale.PAGErank',value = PAGErank)
+G=igraph::set.vertex.attribute(graph = G,name = 'bigSCale.Closeness',value = Closeness)
+G=igraph::set.vertex.attribute(graph = G,name = 'bigSCale.Betweenness',value = Betweenness)
+
 if (cutoff.p<0.7)
   warning('bigSCale: the cutoff for the correlations seems very low. You should either increase the parameter quantile.p or select clustering=normal (you need to run the whole code again in both options,sorry!). For more information check the quick guide online')
 
@@ -3116,10 +3216,16 @@ if (plot.graphic)
 factor1=max(DE.scores.wc[!is.infinite(DE.scores.wc)])/max(DE.scores[!is.na(DE.scores)])
 factor2=min(DE.scores.wc[!is.infinite(DE.scores.wc)])/min(DE.scores[!is.na(DE.scores)])
 factor=mean(c(factor1,factor2))
-
+# print(max(DE.scores.wc[!is.infinite(DE.scores.wc)]))
+# print(max(DE.scores[!is.na(DE.scores)]))
+# print(factor1)
+# print(min(DE.scores.wc[!is.infinite(DE.scores.wc)]))
+# print(min(DE.scores[!is.na(DE.scores)]))
+# print(factor2)
 if (is.infinite(factor) | factor<0)
+{
   stop('Problems with the factor')
-
+}
 #print(sprintf('Factor1 %.2f, factor2 %.2f, average factor %.2f',factor1,factor2,factor))
 
 DE.scores.wc=DE.scores.wc/factor
@@ -3242,14 +3348,37 @@ return(list(clusters=clusters,ht=ht))
 }
 
 
-compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality='bigscale'){
+compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality='bigscale',pca.components){
+  
+  
+  print(sprintf('Proceeding to calculated cell-cell distances with %s modality',modality))
   
   if (modality=='jaccard')
       {
       print("Calculating Jaccard distances ...")
       D=as.matrix(jaccard_dist_text2vec_04(x = Matrix::Matrix( t(as.matrix(expr.norm[driving.genes,]>0)), sparse = T  )))
       return(D)
-      }  
+      }
+ 
+  if (modality=='pca')
+  {
+    
+    
+    print(sprintf('Using %g PCA components for %g genes and %g cells',pca.components,length(driving.genes),ncol(expr.norm)))
+    if(max(expr.norm)==1)
+      {
+      print('Detecting ATAC-seq data...')
+      dummy=svd(expr.norm[driving.genes,],0,pca.components)  
+      }
+      else
+      dummy=svd(log10(expr.norm[driving.genes,]+1),0,pca.components)
+    
+    for (k in 1:ncol(dummy$v))
+      dummy$v[,k]=dummy$v[,k]*dummy$d[k]
+    print('Computing distance from PCA data...')
+    D=dist(dummy$v,method = 'euclidean')
+    return(D) # is a distance object
+  }  
   
   # normalize expression data for library size without scaling to the overall average depth
   if (class(expr.norm)=='big.matrix')
@@ -3257,8 +3386,6 @@ compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.di
   else
     expr.driving.norm=as.matrix(expr.norm[driving.genes,])/mean(lib.size)
   gc()
-  
-  print(sprintf('Proceeding to calculated cell-cell distances with %s modality',modality))
   
   if (modality=='correlation')
     {
@@ -3638,23 +3765,31 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
   # Discarding skewed genes
   if (verbose)
     print('Discarding skewed genes')
-  expr.row.sorted=Rfast::rowSort(expr.norm) #MEMORY ALERT with Rfast::sort_mat
-  a=Rfast::rowmeans(expr.row.sorted[,(num.samples-skwed.cells):num.samples])
-  La=log2(a)
-  B=Rfast::rowVars(expr.row.sorted[,(num.samples-skwed.cells):num.samples], suma = NULL, std = TRUE)/a
-  rm(expr.row.sorted)
-  gc()
-  f=smooth.spline(x=La[La>0],y=B[La>0],df = 12) # smoothing sline approximatinf the La/B relationship
-  yy=approx(f$x,f$y,La)$y # smoothing spline calculate on each exact value of La
-
-  skewed=rep(0,length(yy))
-  skewed_genes=which(B/yy>4)
-  skewed[skewed_genes]=1
   
-  df=as.data.frame(t(rbind(La,B,yy,skewed)))
-  df$skewed=as.factor(df$skewed)
-  g1=ggplot2::ggplot(df) + ggplot2::ggtitle('Discarding skewed genes')  + ggplot2::geom_point(ggplot2::aes(x=La, y=B,color=skewed),alpha=0.5)  + ggplot2::scale_color_manual(breaks = c("0", "1"),values=c("gray", "red")) + ggplot2::geom_line(ggplot2::aes(x=La, y=yy),colour="black")
-  
+  if (max(expr.norm>1))
+      {
+      expr.row.sorted=Rfast::rowSort(expr.norm) #MEMORY ALERT with Rfast::sort_mat
+      a=Rfast::rowmeans(expr.row.sorted[,(num.samples-skwed.cells):num.samples])
+      La=log2(a)
+      B=Rfast::rowVars(expr.row.sorted[,(num.samples-skwed.cells):num.samples], suma = NULL, std = TRUE)/a
+      rm(expr.row.sorted)
+      gc()
+      f=smooth.spline(x=La[La>0],y=B[La>0],df = 12) # smoothing sline approximatinf the La/B relationship
+      yy=approx(f$x,f$y,La)$y # smoothing spline calculate on each exact value of La
+    
+      skewed=rep(0,length(yy))
+      skewed_genes=which(B/yy>4)
+      skewed[skewed_genes]=1
+       df=as.data.frame(t(rbind(La,B,yy,skewed)))
+      df$skewed=as.factor(df$skewed)
+      g1=ggplot2::ggplot(df) + ggplot2::ggtitle('Discarding skewed genes')  + ggplot2::geom_point(ggplot2::aes(x=La, y=B,color=skewed),alpha=0.5)  + ggplot2::scale_color_manual(breaks = c("0", "1"),values=c("gray", "red")) + ggplot2::geom_line(ggplot2::aes(x=La, y=yy),colour="black")
+      }
+    else
+      {
+      skewed_genes=c()
+      g1=plot(1,1)
+      }
+ 
   
   
   
@@ -4134,7 +4269,7 @@ id.map<-function(gene.list,all.genes){
 #' @seealso    
 #' [ViewSignatures()]  
 
-bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=FALSE, clustering='normal'){
+bigscale = function (sce,speed.preset='slow',compute.pseudo=TRUE, memory.save=FALSE, clustering='normal',modality='pca'){
   
 if ('counts' %in% assayNames(sce))
   {
@@ -4164,7 +4299,7 @@ if ('counts' %in% assayNames(sce))
     sce=setODgenes(sce)#favour='high'
  
     print('PASSAGE 6) Computing cell to cell distances ...')
-    sce=setDistances(sce)
+    sce=setDistances(sce,modality = modality)
     
     print('PASSAGE 8) Computing the clusters ...')
     sce=setClusters(sce)
@@ -4230,35 +4365,19 @@ if ('counts' %in% assayNames(sce))
 #' @export
 
 
-bigscale.atac = function (sce, memory.save=FALSE, fragment=0.1){
+bigscale.atac = function (sce,pca.components=25){
   
-  if ('counts' %in% assayNames(sce))
+if ('counts' %in% assayNames(sce))
   {
-    
-    #print('PASSAGE 1) Imputing ATAC data')
-    #sce=ATACimpute(sce)
-    
-    print('PASSAGE 2) Per-processing the dataset')
-    sce=preProcess(sce,pipeline='atac') # so does not create edges
-    
-    print('PASSAGE 3) Storing the Normalized data ....')
-    sce = storeNormalized(sce,memory.save)
-    
-    print('PASSAGE 4) Storing the Normalized-Transformed data (needed for some plots) ....')
-    sce = storeTransformed(sce)
+  print('PASSAGE 1) Per-processing the dataset')
+  sce=preProcess(sce,pipeline='atac')
+  sce = storeNormalized(sce,memory.save = FALSE)
   }
+  sce=setODgenes(sce,min_ODscore = 2)
   
-  else
-    
-  {
-    sce = storeNormalized(sce,memory.save)
-    sce = storeTransformed(sce)
-  }
-  
-  sce=setODgenes(sce,min_ODscore = 2.33)
-  sce=setDistances(sce,modality='pca')
+  normcounts(sce)[normcounts(sce)>0]=1
+  sce=setDistances(sce,modality='pca',pca.components=pca.components)
   sce=setClusters(sce)
-  # sce=RecursiveClustering(sce,modality='jaccard',fragment=fragment)
 
   print('PASSAGE 7) Computing TSNE ...')
   sce=storeTsne(sce)
@@ -4269,12 +4388,6 @@ bigscale.atac = function (sce, memory.save=FALSE, fragment=0.1){
   
   print('PASSAGE 11) Organizing the markers ...')
   sce=setMarkers(sce)
-  
-  if (memory.save==TRUE)
-  { 
-    print('PASSAGE 12) Restoring full matrices of normalized counts and transformed counts...')
-    sce=restoreData(sce)
-  }
   
   return(sce)
   

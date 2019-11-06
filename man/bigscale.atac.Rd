@@ -4,7 +4,7 @@
 \alias{bigscale.atac}
 \title{bigSCale ATAC}
 \usage{
-bigscale.atac(sce, memory.save = FALSE, fragment = 0.1)
+bigscale.atac(sce, pca.components = 25)
 }
 \arguments{
 \item{sce}{object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}.}

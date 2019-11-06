@@ -4,7 +4,7 @@
 \alias{setDistances}
 \title{setDistances}
 \usage{
-setDistances(object, modality = "bigscale")
+setDistances(object, modality = "bigscale", pca.components = 25)
 }
 \arguments{
 \item{modality}{If \code{classic} uses the default bigSCale algorythm. If \code{alternative}, uses an alternative approach which gives a different clustering/TNSE in case you are not satisfied with the default one.}

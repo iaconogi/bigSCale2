@@ -156,10 +156,13 @@ setMethod(f="preProcess",
             
             object@int_metadata$express.filtered=exp.genes
             object$colData=coldata.stored
-            # Assign the size factors 
+            # Assign the size factors
             print('Setting the size factors ....')
             print(class(counts(object)))
             sizeFactors(object) = Rfast::colsums(counts(object))
+            
+            if (pipeline=='atac')
+            counts(object)[counts(object)>0]=1
             
             if (pipeline=='rna')
               {
@@ -380,7 +383,7 @@ setMethod(f="remove.batch.effect",
 #' @export
 
 setGeneric(name="setDistances",
-           def=function(object,modality='bigscale')
+           def=function(object,modality='bigscale',pca.components=25)
            {
              standardGeneric("setDistances")
            }
@@ -388,12 +391,12 @@ setGeneric(name="setDistances",
 
 setMethod(f="setDistances",
           signature="SingleCellExperiment",
-          definition=function(object,modality='bigscale')
+          definition=function(object,modality='bigscale',pca.components=25)
           {
             if ('normcounts' %in% assayNames(object))
-              object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality)
+              object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality,pca.components=pca.components)
             else
-              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality))#, backingfile = 'D.bin',backingpath = getwd())
+              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality,pca.components=pca.components))#, backingfile = 'D.bin',backingpath = getwd())
             
             gc()
             #validObject(object)
@@ -576,10 +579,14 @@ setMethod(f="storeUMAP",
           signature="SingleCellExperiment",
           definition=function(object,...)
           {
+            umap.config=umap::umap.defaults
+            umap.config$input="dist"
+            umap.config$verbose=TRUE
+            
             if (class(object@int_metadata$D)=='big.matrix')
               umap.data=umap::umap(bigmemory::as.matrix(object@int_metadata$D))  
             else
-              umap.data=umap::umap(object@int_metadata$D)
+              umap.data=umap::umap(as.matrix(object@int_metadata$D),config = umap.config)
             reducedDims(object)$UMAP=umap.data$layout
             rm(umap.data)
             gc()
