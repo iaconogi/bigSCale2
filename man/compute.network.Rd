@@ -4,8 +4,9 @@
 \alias{compute.network}
 \title{Gene regulatory network}
 \usage{
-compute.network(expr.data, gene.names, clustering = "recursive",
-  quantile.p = 0.998, speed.preset = "slow", previous.output = NA)
+compute.network(expr.data, gene.names, modality = "pca", model = NA,
+  clustering = "recursive", quantile.p = 0.9, speed.preset = "slow",
+  previous.output = NA)
 }
 \arguments{
 \item{expr.data}{matrix of expression counts. Works also with sparse matrices of the \pkg{Matrix} package.}
@@ -19,7 +20,8 @@ compute.network(expr.data, gene.names, clustering = "recursive",
  \item {\bold{normal}} To be used if the correlations (the output value \bold{cutoff.p}) detected with either \bold{direct} or \bold{recursive} are too low. At the moment, bigSCale displays a warning if the correlation curoff is lower than 0.8 and suggests to eithe use \bold{normal} clustering or increase the input parameter \bold{quantile.p}
 }}
 
-\item{quantile.p}{only the first \eqn{1 - quantile.p} correlations are used to create the edges of the network. If the networ is too sparse(dense) decrease(increase) \eqn{quantile.p}}
+\item{quantile.p}{To select how many correlatoins are retained. By default \eqn{quantile.p=0.9} meaning that only Pearson Correlatins>0.9 are retained to create the network. If the number is higher than 1 then it is interpreted as a quantile, meaning tha only the first \eqn{1 - quantile.p} correlations are used to create the edges of the network. 
+If \eqn{0<quantile.p<1} ten it is interprested directly as the minimum Pearson correlation. If the networ is too sparse(dense) decrease(increase) \eqn{quantile.p}}
 
 \item{speed.preset}{Used only if  \code{clustering='recursive'} . It regulates the speed vs. accuracy of the Zscores calculations. To have a better network quality it is reccomended to use the default \bold{slow}.
 \itemize{

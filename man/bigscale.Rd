@@ -4,8 +4,8 @@
 \alias{bigscale}
 \title{bigSCale2.0}
 \usage{
-bigscale(sce, speed.preset = "slow", compute.pseudo = TRUE,
-  memory.save = FALSE, clustering = "normal", modality = "pca")
+bigscale(sce, modality = "pca", speed.preset = "slow",
+  compute.pseudo = TRUE, clustering = "normal")
 }
 \arguments{
 \item{sce}{object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}. Optionally, you can also fill \code{colData(sce)} with any annotation such as batch, condition: they will be displayed in the plots.}
@@ -17,9 +17,9 @@ bigscale(sce, speed.preset = "slow", compute.pseudo = TRUE,
   \item {\bold{fast}} {Fastest computational time, if you are in a hurry and you have lots of cell (>15K) you can use this}
 }}
 
-\item{memory.save}{enables a series of tricks to reduce RAM memory usage. Aware of one case (in linux) in which this option causes irreversible error.}
-
 \item{clustering}{setting \code{clustering='recursive'} forces the immediate and accurate detection of cell subtypes.}
+
+\item{memory.save}{enables a series of tricks to reduce RAM memory usage. Aware of one case (in linux) in which this option causes irreversible error.}
 }
 \value{
 An sce object storing the markers, pseudotime, cluster and other results. To access the results you can use several S4 methods liste below. Also check the online quick start tutorial over

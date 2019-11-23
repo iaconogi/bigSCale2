@@ -132,45 +132,33 @@ setMethod(f="preProcess",
             
             # Removing zeros rows
             print('Pre-processing) Removing null rows ')
-            expr.data=as.matrix(counts(object))
             gene.names=rownames(object)
-            exp.genes=which(Rfast::rowsums(expr.data)>0)
-            coldata.stored=colData(object)
-            if ((nrow(expr.data)-length(exp.genes))>0)
+            exp.genes=which(Matrix::rowSums(counts(object))>0)
+            
+            if ((nrow(counts(object))-length(exp.genes))>0)
             {
-              print(sprintf("Discarding %g genes with all zero values",nrow(expr.data)-length(exp.genes)))
-              object <- SingleCellExperiment(assays = list(counts = expr.data[exp.genes,]))
-              rownames(object)=as.matrix(gene.names[exp.genes]) 
-              rm(gene.names) 
-              rm(expr.data)
+              print(sprintf("Discarding %g genes with all zero values",nrow(counts(object))-length(exp.genes)))
+              object=object[exp.genes,]
+              #object <- SingleCellExperiment(assays = list(counts = counts(object)[exp.genes,]))
+              #rownames(object)=as.matrix(gene.names[exp.genes]) 
               gc()
             }
-            else
-            {
-              object <- SingleCellExperiment(assays = list(counts = expr.data))
-              rownames(object)=as.matrix(gene.names) 
-              rm(gene.names) 
-              rm(expr.data)
-              gc()
-            }      
-            
+
             object@int_metadata$express.filtered=exp.genes
-            object$colData=coldata.stored
+            
             # Assign the size factors
             print('Setting the size factors ....')
-            print(class(counts(object)))
-            sizeFactors(object) = Rfast::colsums(counts(object))
+            sizeFactors(object) = Matrix::colSums(counts(object))
             
             if (pipeline=='atac')
-            counts(object)[counts(object)>0]=1
+              counts(object)[counts(object)>0]=1
             
             if (pipeline=='rna')
               {
               print('Generating the edges ....')
               object@int_metadata$edges=generate.edges(counts(object))
               }
-            
-            
+
             return(object)
           }
 )
@@ -200,11 +188,7 @@ setMethod(f="setModel",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            if ('normcounts' %in% assayNames(object))
-             model.output=fit.model(expr.norm = normcounts(object),edges = object@int_metadata$edges,lib.size=sizeFactors(object))
-            else
-              model.output=fit.model(expr.norm = object@int_metadata$expr.norm.big,edges = object@int_metadata$edges,lib.size=sizeFactors(object)) 
-            
+            model.output=fit.model(expr.norm = normcounts(object),edges = object@int_metadata$edges,lib.size=sizeFactors(object))
             object@int_metadata$model=model.output$N_pct
             object@int_metadata$N=model.output$N
             return(object)
@@ -406,6 +390,57 @@ setMethod(f="setDistances",
 
 
 
+#' setDCT
+#'
+#' computes t-SNE, UMAP and clusters
+#' 
+#' @param sce object of the SingleCellExperiment class.
+#' @param modality If \code{classic} uses the default bigSCale algorythm. If \code{alternative}, uses an alternative approach which gives a different clustering/TNSE in case you are not satisfied with the default one.
+#' @return  object of the SingleCellExperiment class, with cell to cell distances stored inside (in the virtual memory)
+#' 
+#' @examples
+#' sce=setDCT(sce)
+#' @export
+
+setGeneric(name="setDCT",
+           def=function(object,pca.components=25,k.num=10)
+           {
+             standardGeneric("setDCT")
+           }
+)
+
+setMethod(f="setDCT",
+          signature="SingleCellExperiment",
+          definition=function(object,pca.components=25,k.num=100)
+          {  
+            
+            driving.genes=which(object@int_elementMetadata$ODgenes==1)
+            print(sprintf('Using %g PCA components for %g genes and %g cells',pca.components,length(driving.genes),ncol(normcounts(object))))
+            if(max(normcounts(object))==1)
+            {
+              print('Detecting ATAC-seq data...')
+              dummy=svd(normcounts(object)[driving.genes,],0,pca.components)  
+            }
+            else
+              dummy=svd(log10(normcounts(object)[driving.genes,]+1),0,pca.components)
+            
+            for (k in 1:ncol(dummy$v))
+              dummy$v[,k]=dummy$v[,k]*dummy$d[k]
+            
+            print('Computing t-SNE and UMAP...')
+            tsne=Rtsne::Rtsne(X = dummy$v,normalize = FALSE,pca = FALSE)# transforming to full matrix
+            umap=umap::umap(d = dummy$v)
+            reducedDims(object)$TSNE=tsne$Y
+            reducedDims(object)$UMAP=umap$layout
+            gc()
+            return(object)
+          }  
+
+
+          
+)
+
+
 
 
 #' getDistances
@@ -431,7 +466,7 @@ setMethod(f="getDistances",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            return(bigmemory::as.matrix(object@int_metadata$D))
+            return(as.matrix(object@int_metadata$D))
           }
 )
 
@@ -464,14 +499,28 @@ setGeneric(name="setClusters",
 
 setMethod(f="setClusters",
           signature="SingleCellExperiment",
-          definition=function(object,customClust=NA,classifier=NA,num.classifiers=NA,...)
+          definition=function(object,customClust=NA,classifier=NA,num.classifiers=NA,k.num=100,...)
           {
             if (is.na(customClust[1]) & is.na(classifier[1]))
               {
               print("Calculating the clusters")
-              out=bigscale.cluster(object@int_metadata$D,...)
-              object@int_colData$clusters=out$clusters
-              object@int_metadata$htree=out$ht
+              
+              
+              if (is.null(sce@int_metadata$D))
+                {
+                #knn.norm = FNN::get.knn(dummy$v, k = knn)
+                knn.norm = FNN::get.knn(reducedDim(object, 'UMAP'), k = k.num)
+                knn.norm = data.frame(from = rep(1:nrow(knn.norm$nn.index),k.num), to = as.vector(knn.norm$nn.index), weight = 1/(1 + as.vector(knn.norm$nn.dist)))
+                knn.norm = igraph::graph_from_data_frame(knn.norm, directed = FALSE)
+                knn.norm = igraph::simplify(knn.norm)
+                object@int_colData$clusters=igraph::cluster_louvain(knn.norm)$membership
+                }
+              else
+                {
+                out=bigscale.cluster(object@int_metadata$D,...)
+                object@int_colData$clusters=out$clusters
+                object@int_metadata$htree=out$ht
+                }
               }
             if (length(customClust)>1)
               {
@@ -485,6 +534,7 @@ setMethod(f="setClusters",
             }      
             gc()
             #validObject(object)
+            print(sprintf('Determined %g clusters',max(object@int_colData$clusters)))
             return(object)
           }
 )
@@ -543,9 +593,9 @@ setMethod(f="storeTsne",
             gc.out=gc()
             print(gc.out)
             if ('normcounts' %in% assayNames(object))
-              tsne.data=Rtsne::Rtsne(X=object@int_metadata$D,is_distance = TRUE, ...)
+              tsne.data=Rtsne::Rtsne(X=object@int_metadata$D,is_distance = TRUE,normalize=FALSE, ...)
             else
-              tsne.data=Rtsne::Rtsne(X=bigmemory::as.matrix(object@int_metadata$D),is_distance = TRUE, ...)
+              tsne.data=Rtsne::Rtsne(X=bigmemory::as.matrix(object@int_metadata$D),is_distance = TRUE,normalize=FALSE, ...)
             
             reducedDims(object)$TSNE=tsne.data$Y
             rm(tsne.data)
@@ -715,46 +765,16 @@ setGeneric(name="storeNormalized",
 
 setMethod(f="storeNormalized",
           signature="SingleCellExperiment",
-          definition=function(object, memory.save=TRUE) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
+          definition=function(object) #dummy=dummy/Rfast::rep_row(library.size, nrow(dummy))*mean(library.size)
           {
-            
             if ('normcounts' %in% assayNames(object))
-            {
-              if (memory.save==TRUE)
-              {
-                print('Saving to swap the normalized expression matrix...')
-                dummy=bigmemory::as.big.matrix(as.matrix(normcounts(object)))
-                object@int_metadata$expr.norm.big=dummy
-                normcounts(object)=c()
-                rm(dummy)
-                gc()
-              }
               return(object)
-            }
               
-            
             dummy=counts(object)
             counts(object)=c()
             gc()
-            
-            library.size=sizeFactors(object)
-            avg.library.size=mean(library.size)
-            for (k in 1:ncol(dummy))
-              dummy[,k]=dummy[,k]/library.size[k]*avg.library.size
+            normcounts(object)=batch.normalize(dummy,sizeFactors(object))
             gc()
-            
-            if (memory.save==TRUE)
-              {
-              print('Saving to swap the normalized expression matrix...')
-              dummy=bigmemory::as.big.matrix(dummy)#,backingfile = 'normcounts.bin',backingpath = getwd())
-              object@int_metadata$expr.norm.big=dummy
-              rm(dummy)
-              }
-              else
-              normcounts(object)=Matrix::Matrix(dummy)  
-            gc.out=gc()
-            print(gc.out)
-
             return(object)
           }
 )
@@ -892,7 +912,18 @@ setMethod(f="setMarkers",
             
             object@int_metadata$Mlist.counts=as.data.frame(n.markers)
             
+            # 
+            Mmatrix=matrix(0,length(rownames(object)),ncol(object@int_metadata$Mscores))
+            for (k in 1:ncol(object@int_metadata$Mscores))
+            {
+              dummy.vec=c()
+              for (h in 1:ncol(object@int_metadata$Mscores))
+                dummy.vec=cbind(dummy.vec,object@int_metadata$Mscores[[k,h]])
+              Mmatrix[,k]=-Rfast::rowmeans(dummy.vec)
+            }
+              
             
+            object@int_metadata$Mmatrix=Mmatrix
             object@int_metadata$Mlist=Mlist
             return(object)
           }
