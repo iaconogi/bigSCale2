@@ -14,7 +14,7 @@ If you used bigSCale2 please cite out papers [Iacono 2018](https://genome.cshlp.
 
 
 **UPDATES**<br />
-**v2.0 (22/11/2019): Several Major updates, especially for the networks part. It is now possible to export and visualize the networks in Cytoscape. Also imporved processig when inferring networks of different conditions to compare them.** <br />
+**v2.0 (22/11/2019): Several Major updates, especially for the networks part. It is now possible to export and visualize the networks in Cytoscape. Also improved processig when inferring networks of different conditions to compare them.** <br />
 v1.7 (04/07/2019): Fixed a bug inside the differential expression code. You might want to re-run your analysis (including networks, clustering, phenotyping ....) to have better results. Thanks to JasonLiZhou for signalling it.<br />
 v1.6 (04/07/2019): Added a pipeline for single cell ATAC-seq data.<br />
 v1.5 (28/06/2019): Fixed a bug in the iCells which was causing an excessive use of memory usage.<br />
