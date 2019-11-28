@@ -4452,8 +4452,6 @@ if ('counts' %in% assayNames(sce))
     {
     print('Computing cell to cell distances ...')
     sce=setDistances(sce,modality = modality)
-    print('Computing the clusters ...')
-    sce=setClusters(sce)
     }
   else
     {
@@ -4462,7 +4460,8 @@ if ('counts' %in% assayNames(sce))
     }
   sce=storeTsne(sce)
   }
-     
+  
+  sce=setClusters(sce)
   print('Computing the markers (slowest part) ...')
   sce=computeMarkers(sce,speed.preset=speed.preset)
   print('Organizing the markers ...')

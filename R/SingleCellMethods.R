@@ -267,29 +267,45 @@ setMethod(f="setODgenes",
               return(object)
             }
             
-            if ('normcounts' %in% assayNames(object))
+            rounds=1
+            if (ncol(normcounts(object))>30000)
+              rounds=round(ncol(normcounts(object))/15000)
+            if (rounds>5) rounds=5
+            print(sprintf('Proceeding with %g rounds of search for driving genes',rounds))
+
+       
+            for (k in 1:rounds) 
+            {
               out=calculate.ODgenes(expr.norm = normcounts(object),min_ODscore=min_ODscore,use.exp=use.exp)
-            else
-              out=calculate.ODgenes(expr.norm = object@int_metadata$expr.norm.big,min_ODscore=min_ODscore,use.exp=use.exp)
-              
-            # print('Calculating ODgenes using normalized expression counts')
-            # tot.cells=ncol(normcounts(object))
-            # if (tot.cells>10000)
-            #   {
-            #   ix=sample(tot.cells,10000)
-            #   out=calculate.ODgenes(expr.norm = normcounts(object)[,ix],...)
-            #   }
-            # else
-            #   out=calculate.ODgenes(expr.norm = normcounts(object),...)
-             
-               
-            #    }
-            # else
-            #     {
-            #     print('Calculating ODgenes using expression counts NOT batch corrected')
-            #     out=calculate.ODgenes(expr.data = counts(object),...)
-            #     }  
+              dummy=as.matrix(out[[1]])
+              if (k==1)
+                {
+                ODgenes=dummy[,1]
+                ODscores=dummy[,2]
+                }
+                 else
+                {
+                ODgenes=cbind(ODgenes,dummy[,1])
+                ODscores=cbind(ODscores,dummy[,2])
+                }                 
+            }
             
+            #ODgenes.out<<-ODgenes
+            #ODscores.out<<-ODscores
+            
+            if(rounds>1)
+            {
+              ODgenes=Rfast::rowsums(ODgenes)
+              ODgenes[which(ODgenes>0)]=1
+              ODscores=Rfast::rowmeans(ODscores) 
+              print(sprintf('Union results in %g driving genes',sum(ODgenes)))
+              object@int_elementMetadata$ODgenes=ODgenes
+              object@int_elementMetadata$ODscore=ODscores
+              return(object)
+            }
+
+            
+
             object@int_metadata$ODgenes.plots=out[2:5]
             dummy=as.matrix(out[[1]])
             object@int_elementMetadata$ODgenes=dummy[,1]
@@ -506,7 +522,7 @@ setMethod(f="setClusters",
               print("Calculating the clusters")
               
               
-              if (is.null(sce@int_metadata$D))
+              if (is.null(object@int_metadata$D))
                 {
                 #knn.norm = FNN::get.knn(dummy$v, k = knn)
                 knn.norm = FNN::get.knn(reducedDim(object, 'UMAP'), k = k.num)
