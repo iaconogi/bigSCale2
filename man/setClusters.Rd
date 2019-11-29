@@ -5,7 +5,7 @@
 \title{setClusters}
 \usage{
 setClusters(object, customClust = NA, classifier = NA,
-  num.classifiers = NA, ...)
+  num.classifiers = NA, k.f = 100, ...)
 }
 \arguments{
 \item{object}{object of the SingleCellExperiment class.}
@@ -16,11 +16,11 @@ setClusters(object, customClust = NA, classifier = NA,
 
 \item{num.classifiers}{How many markers should be used for each group. Check online tutorial for further help https://github.com/iaconogi/bigSCale2#classifier}
 
-\item{method.treshold}{By default \code{method.treshold=0.5}. Increasing(decreasing) it results in bigSCale2 partitioning in more(less) clusters.}
+\item{k.f}{Inversely proportinal to the number of clusters}
 
 \item{plot.clusters}{By default \code{plot.clusters=FALSE}. If \code{plot.clusters=TRUE} plots a dendrogram of the clusters while making the analysis.}
 
-\item{cut.depth}{By default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100 percent).}
+\item{cut.depth}{By default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100 percent). Works ONLY if using bigSCale modality.}
 }
 \value{
 SingleCellExperiment object with the clusters stored inside.

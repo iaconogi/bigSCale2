@@ -4,7 +4,7 @@
 \alias{setDCT}
 \title{setDCT}
 \usage{
-setDCT(object, pca.components = 25, k.num = 10)
+setDCT(object, pca.components = 25)
 }
 \arguments{
 \item{sce}{object of the SingleCellExperiment class.}

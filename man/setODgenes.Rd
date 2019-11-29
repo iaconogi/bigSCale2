@@ -4,7 +4,7 @@
 \alias{setODgenes}
 \title{setODgenes}
 \usage{
-setODgenes(object, min_ODscore = 2.33, use.exp = c(0, 1),
+setODgenes(object, min_ODscore = 1, use.exp = c(0, 1),
   custom.genes = NA)
 }
 \arguments{

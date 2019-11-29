@@ -493,9 +493,9 @@ setMethod(f="getDistances",
 #' 
 #' @param object object of the SingleCellExperiment class.
 #' @param customClust A numeric vector containg your custom cluster assignment, overrides all previous settings. 
-#' @param method.treshold By default \code{method.treshold=0.5}. Increasing(decreasing) it results in bigSCale2 partitioning in more(less) clusters.
 #' @param plot.clusters By default \code{plot.clusters=FALSE}. If \code{plot.clusters=TRUE} plots a dendrogram of the clusters while making the analysis.
-#' @param cut.depth By default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100 percent).
+#' @param k.f Inversely proportinal to the number of clusters
+#' @param cut.depth By default not used. It overrides the internal decisions of bigSCale2 and forces it to cut the dendrogram at cut.depth (0-100 percent). Works ONLY if using bigSCale modality.
 #' @param classifier New option which allows to cluster the cells according to two or three genes given as input.
 #' @param num.classifiers How many markers should be used for each group. Check online tutorial for further help https://github.com/iaconogi/bigSCale2#classifier
 #' 
