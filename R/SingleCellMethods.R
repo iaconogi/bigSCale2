@@ -244,7 +244,7 @@ setMethod(f="viewModel",
 #' @export
 
 setGeneric(name="setODgenes",
-           def=function(object,min_ODscore=2.33,use.exp=c(0,1),custom.genes=NA)
+           def=function(object,min_ODscore=1,use.exp=c(0,1),custom.genes=NA)
            {
              standardGeneric("setODgenes")
            }
@@ -252,7 +252,7 @@ setGeneric(name="setODgenes",
 
 setMethod(f="setODgenes",
           signature="SingleCellExperiment",
-          definition=function(object,min_ODscore=2.33,use.exp=c(0,1),custom.genes=NA)
+          definition=function(object,min_ODscore=1,use.exp=c(0,1),custom.genes=NA)
           {
             
             #if ('counts.batch.removed' %in% assayNames(object))
@@ -419,7 +419,7 @@ setMethod(f="setDistances",
 #' @export
 
 setGeneric(name="setDCT",
-           def=function(object,pca.components=25,k.num=10)
+           def=function(object,pca.components=25)
            {
              standardGeneric("setDCT")
            }
@@ -427,7 +427,7 @@ setGeneric(name="setDCT",
 
 setMethod(f="setDCT",
           signature="SingleCellExperiment",
-          definition=function(object,pca.components=25,k.num=100)
+          definition=function(object,pca.components=25)
           {  
             
             driving.genes=which(object@int_elementMetadata$ODgenes==1)
@@ -507,7 +507,7 @@ setMethod(f="getDistances",
 #' @export
 
 setGeneric(name="setClusters",
-           def=function(object,customClust=NA,classifier=NA,num.classifiers=NA,...)
+           def=function(object,customClust=NA,classifier=NA,num.classifiers=NA,k.f=100,...)
            {
              standardGeneric("setClusters")
            }
@@ -515,7 +515,7 @@ setGeneric(name="setClusters",
 
 setMethod(f="setClusters",
           signature="SingleCellExperiment",
-          definition=function(object,customClust=NA,classifier=NA,num.classifiers=NA,k.num=100,...)
+          definition=function(object,customClust=NA,classifier=NA,num.classifiers=NA,k.f=100,...)
           {
             if (is.na(customClust[1]) & is.na(classifier[1]))
               {
@@ -524,8 +524,9 @@ setMethod(f="setClusters",
               
               if (is.null(object@int_metadata$D))
                 {
-                #knn.norm = FNN::get.knn(dummy$v, k = knn)
-                knn.norm = FNN::get.knn(reducedDim(object, 'UMAP'), k = k.num)
+                #round(nrow(reducedDim(object, 'UMAP'))/k.num)
+                k.num=round(nrow(reducedDim(object, 'UMAP'))/k.f)
+                knn.norm = FNN::get.knn(reducedDim(object, 'UMAP'), k = k.num )
                 knn.norm = data.frame(from = rep(1:nrow(knn.norm$nn.index),k.num), to = as.vector(knn.norm$nn.index), weight = 1/(1 + as.vector(knn.norm$nn.dist)))
                 knn.norm = igraph::graph_from_data_frame(knn.norm, directed = FALSE)
                 knn.norm = igraph::simplify(knn.norm)
