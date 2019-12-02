@@ -383,7 +383,7 @@ setMethod(f="remove.batch.effect",
 #' @export
 
 setGeneric(name="setDistances",
-           def=function(object,modality='bigscale',pca.components=25)
+           def=function(object,modality='pca',pca.components=25)
            {
              standardGeneric("setDistances")
            }
@@ -391,13 +391,9 @@ setGeneric(name="setDistances",
 
 setMethod(f="setDistances",
           signature="SingleCellExperiment",
-          definition=function(object,modality='bigscale',pca.components=25)
+          definition=function(object,modality='pca',pca.components=25)
           {
-            if ('normcounts' %in% assayNames(object))
-              object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality,pca.components=pca.components)
-            else
-              object@int_metadata$D=bigmemory::as.big.matrix(compute.distances(expr.norm = object@int_metadata$expr.norm.big,N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality,pca.components=pca.components))#, backingfile = 'D.bin',backingpath = getwd())
-            
+            object@int_metadata$D=compute.distances(expr.norm = normcounts(object),N_pct = object@int_metadata$model, edges = object@int_metadata$edges, driving.genes = which(object@int_elementMetadata$ODgenes==1),lib.size = sizeFactors(object),modality=modality,pca.components=pca.components)
             gc()
             #validObject(object)
             return(object)
@@ -1067,17 +1063,10 @@ setMethod(f="storePseudo",
             
             if (class(object@int_metadata$D)=='dgCMatrix')
               error('Error of the stupid biSCale2 programmer!')
-            
             print('Generating the graph ...') # CRUSHING POINT!!!!
-            
-            if (class(object@int_metadata$D)=='big.matrix')
-              G=igraph::graph_from_adjacency_matrix(adjmatrix = bigmemory::as.matrix(object@int_metadata$D),mode = 'undirected',weighted = TRUE)
-            else
-              {
-              G=igraph::graph_from_adjacency_matrix(adjmatrix = object@int_metadata$D,mode = 'undirected',weighted = TRUE)
-              #object@int_metadata$D=c()
-              gc()
-              }
+            G=igraph::graph_from_adjacency_matrix(adjmatrix = as.matrix(object@int_metadata$D),mode = 'undirected',weighted = TRUE)
+            gc()
+
             
             # gc()
             # 

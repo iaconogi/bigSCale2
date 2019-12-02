@@ -3495,7 +3495,7 @@ return(list(clusters=clusters,ht=ht))
 }
 
 
-compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality='bigscale',pca.components=25){
+compute.distances = function (expr.norm, N_pct , edges, driving.genes , genes.discarded,lib.size,modality='pca',pca.components=25){
   
   
   print(sprintf('Proceeding to calculated cell-cell distances with %s modality',modality))
@@ -4427,7 +4427,7 @@ bigscale = function (sce,modality='pca',speed.preset='slow',compute.pseudo=TRUE,
 if ('counts' %in% assayNames(sce))
   {
    print('PASSAGE 1) Setting the bins for the expression data ....')
-   sce=preProcess(sce,modality=modality)
+   sce=preProcess(sce)
   
    print('PASSAGE 2) Storing the Normalized data ....')
    sce = storeNormalized(sce)
