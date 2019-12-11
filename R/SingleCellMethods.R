@@ -815,27 +815,8 @@ setMethod(f="storeTransformed",
           signature="SingleCellExperiment",
           definition=function(object)
           {
-            
-            if ('transcounts' %in% assayNames(object))
-            {
-              if (!('normcounts' %in% assayNames(object)))
-              {
-                print('Saving to swap transcounts matrix...')
-                dummy=bigmemory::as.big.matrix(as.matrix(assay(object,'transcounts')))
-                object@int_metadata$transformed.big=dummy
-                assay(object,'transcounts')=c()
-                rm(dummy)
-                gc()
-              }
-              return(object)
-            }
-            
-            
-            if ('normcounts' %in% assayNames(object))
-              assay(object,'transcounts')=transform.matrix(normcounts(object),case = 4)
-            else
-              object@int_metadata$transformed.big=transform.matrix(object@int_metadata$expr.norm.big,case = 4)
-            return(object)
+          assay(object,'transcounts')=transform.matrix(normcounts(object),case = 4)
+          return(object)
           }
 )
 

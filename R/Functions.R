@@ -4285,20 +4285,12 @@ generate.edges<-function(expr.data){
 }
 
 transform.matrix<-function(expr.norm,case){
-  
-  
-  if (class(expr.norm)=='big.matrix')
-    {
-    expr.norm=bigmemory::as.matrix(expr.norm)
-    memory.save.active=TRUE
-    }
-  else
-    {
-    expr.norm=as.matrix(expr.norm)
-    memory.save.active=FALSE
-    } 
-  
+
   print('Computing transformed matrix ...')
+  print('Converting sparse to full Matrix ...')
+  
+  expr.norm=as.matrix(expr.norm)
+  
   
   if (case==2)# model=2. Log(x+1), 
     expr.norm=log2(expr.norm+1)
@@ -4317,12 +4309,6 @@ transform.matrix<-function(expr.norm,case){
     expr.norm[k,]=shift.values(expr.norm[k,],0,1)
   #t(apply(expr.norm, 1,shift.values,A=0,B=1))
   
-  if (memory.save.active==TRUE & case==4)
-    {
-    print('saving to swap transformed matrix ...')  
-    expr.norm=bigmemory::as.big.matrix(expr.norm)#,backingfile = 'transcounts.bin',backingpath = getwd())
-    }
-
   
   gc()
   return(expr.norm)
