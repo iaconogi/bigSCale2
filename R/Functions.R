@@ -29,8 +29,11 @@ homogenize.networks.internal<-function(input.networks,tick){
   
   print('Number of edges for each network')
   print(edges)
-  median.edges=median(edges)
+  median.edges=median(edges)+1
   print(sprintf('Aiming at %g edges for each network',median.edges))
+  
+  if (sum(edges==median.edges)>0)
+    error('One network has exactly the amount of edges we are aiming to. This will cause an infinite loop. In the very rare case plese contact developer at gio.iacono.work@gmail.com')
   
   for (k in 1:length(input.networks))
   {
