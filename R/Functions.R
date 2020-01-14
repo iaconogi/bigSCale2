@@ -1779,7 +1779,8 @@ num.samples=ncol(expr.data.norm)
 if (fragment==FALSE)
   {
   # Adjusting max_group_size according to cell number
-  if (num.samples<5000) dim.cutoff=50
+  if (num.samples<1000) dim.cutoff=10
+  if (num.samples>=1000 & num.samples<5000) dim.cutoff=50
   if (num.samples>=5000 & num.samples<10000) dim.cutoff=100
   if (num.samples>=10000) dim.cutoff=150
   }
