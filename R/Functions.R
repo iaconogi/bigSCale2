@@ -1787,7 +1787,10 @@ if (fragment==FALSE)
 else
 {
   if (fragment==TRUE)
-    dim.cutoff=50
+      {
+      if (num.samples<1000) dim.cutoff=10
+      else dim.cutoff=50
+      }
   else
     {
     dim.cutoff=fragment*ncol(expr.data.norm)
