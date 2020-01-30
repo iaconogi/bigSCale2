@@ -4,8 +4,14 @@
 \alias{setClusters}
 \title{setClusters}
 \usage{
-setClusters(object, customClust = NA, classifier = NA,
-  num.classifiers = NA, k.f = 100, ...)
+setClusters(
+  object,
+  customClust = NA,
+  classifier = NA,
+  num.classifiers = NA,
+  k.f = 100,
+  ...
+)
 }
 \arguments{
 \item{object}{object of the SingleCellExperiment class.}

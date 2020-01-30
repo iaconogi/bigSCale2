@@ -4,8 +4,13 @@
 \alias{bigscale.readMM}
 \title{bigscale.readMM}
 \usage{
-bigscale.readMM(file, max.vals, skip.vals = 0, size.only = FALSE,
-  current.condition = NA)
+bigscale.readMM(
+  file,
+  max.vals,
+  skip.vals = 0,
+  size.only = FALSE,
+  current.condition = NA
+)
 }
 \description{
 bigscale.readMM

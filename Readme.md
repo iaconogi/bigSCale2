@@ -542,7 +542,7 @@ results.t2d=compute.network(expr.data = expr.t2d,gene.names = gene.names,model =
 Now, healthy pancreas has a network of 2301 nodes and 9513 edges, while type 2 diabetes has 5387 nodes and 48583 edges. The two networks have been generated using the same cutoff for pearson correlation, which is equal to 0.9 by default. While we could compare the networks straight away, my current advice is to further manipulate the networks to obtain a similar number of edges between the two. In this way we minimize the processing differences and we will get more meaninful results when comparing node centralities. To homogeneize the number of edges troughout multiple networks, prior to comparison of gene centralities, we run the line:
 
 ```{r}
-output=homogeneize.networks(list(result.ctl,result,t2d))
+output=homogenize.networks(list(result.ctl,result,t2d))
 result.ctl=output[[1]]
 result.t2d=output[[2]]
 ```

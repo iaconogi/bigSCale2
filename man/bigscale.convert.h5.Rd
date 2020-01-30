@@ -4,8 +4,7 @@
 \alias{bigscale.convert.h5}
 \title{bigscale.convert.h5}
 \usage{
-bigscale.convert.h5(input.file, output.file, counts.field,
-  filter.cells = 0)
+bigscale.convert.h5(input.file, output.file, counts.field, filter.cells = 0)
 }
 \description{
 Converts and .HDF5 format to a .MEX format

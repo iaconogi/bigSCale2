@@ -4,9 +4,16 @@
 \alias{compute.network}
 \title{Gene regulatory network}
 \usage{
-compute.network(expr.data, gene.names, modality = "pca", model = NA,
-  clustering = "recursive", quantile.p = 0.9, speed.preset = "slow",
-  previous.output = NA)
+compute.network(
+  expr.data,
+  gene.names,
+  modality = "pca",
+  model = NA,
+  clustering = "recursive",
+  quantile.p = 0.9,
+  speed.preset = "slow",
+  previous.output = NA
+)
 }
 \arguments{
 \item{expr.data}{matrix of expression counts. Works also with sparse matrices of the \pkg{Matrix} package.}

@@ -4,8 +4,7 @@
 \alias{setODgenes}
 \title{setODgenes}
 \usage{
-setODgenes(object, min_ODscore = 1, use.exp = c(0, 1),
-  custom.genes = NA)
+setODgenes(object, min_ODscore = 1, use.exp = c(0, 1), custom.genes = NA)
 }
 \arguments{
 \item{min_ODscore}{the treshold (Z-score) used to select highly variable genes. Increasing(decreasing) it results in less(more) highly variable genes.}

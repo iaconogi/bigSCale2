@@ -4,8 +4,13 @@
 \alias{bigscale}
 \title{bigSCale2.0}
 \usage{
-bigscale(sce, modality = "pca", speed.preset = "slow",
-  compute.pseudo = TRUE, clustering = "normal")
+bigscale(
+  sce,
+  modality = "pca",
+  speed.preset = "slow",
+  compute.pseudo = TRUE,
+  clustering = "normal"
+)
 }
 \arguments{
 \item{sce}{object of the SingleCellExperiment class. The required elements are \code{counts(sce)} and \code{rownames(sce)}. Optionally, you can also fill \code{colData(sce)} with any annotation such as batch, condition: they will be displayed in the plots.}

@@ -7,11 +7,9 @@
 extract.cells(input.mex, output.mex, cells, chuncks = 50000)
 }
 \arguments{
-\item{input.mex}{File name of the input dataset}
+\item{input.mex}{File name of the output dataset}
 
 \item{cells}{Indices of the cells you want to extract}
-
-\item{input.mex}{File name of the output dataset}
 
 \item{chunks}{A techincal parameter, you should not really touch this. It represent how large is the chunk of cells read when sequentially pharsing the input.mex}
 }

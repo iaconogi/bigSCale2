@@ -4,9 +4,21 @@
 \alias{compute.distances.icell}
 \title{Compute iCell distances}
 \usage{
-compute.distances.icell(file.dir, max.vals, pointer, driving.genes, N_pct,
-  edges, q.cutoff.narrow, q.cutoff.large, chunk.number, current.condition,
-  pooling.factor, verbose, neighbours)
+compute.distances.icell(
+  file.dir,
+  max.vals,
+  pointer,
+  driving.genes,
+  N_pct,
+  edges,
+  q.cutoff.narrow,
+  q.cutoff.large,
+  chunk.number,
+  current.condition,
+  pooling.factor,
+  verbose,
+  neighbours
+)
 }
 \description{
 Compute iCell distances

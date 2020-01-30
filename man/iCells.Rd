@@ -4,10 +4,19 @@
 \alias{iCells}
 \title{iCells}
 \usage{
-iCells(file.dir, target.cells, sample.conditions = NA,
-  neighbours = 500, verbose = FALSE, pooling = "relative",
-  q.cutoffs = 0.05, preproc.cells = 10000, icells.chuncks = 1e+05,
-  preproc.chuncks = 2e+05, min_ODscore = 3)
+iCells(
+  file.dir,
+  target.cells,
+  sample.conditions = NA,
+  neighbours = 500,
+  verbose = FALSE,
+  pooling = "relative",
+  q.cutoffs = 0.05,
+  preproc.cells = 10000,
+  icells.chuncks = 1e+05,
+  preproc.chuncks = 2e+05,
+  min_ODscore = 3
+)
 }
 \arguments{
 \item{file.dir}{input dataset, file name}
