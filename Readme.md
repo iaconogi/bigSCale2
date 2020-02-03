@@ -103,11 +103,13 @@ The analysis are now all complete and stored again in the `sce` object. In the n
 ### Clusters and  signatures of co-expressed genes
 
 *bigSCale2* feature a basic set of plot types to visualize the main results of clustering and phenotyping.<br />
-First, we make a plot of the clusters and signatures of coexpressed genes.
+First, we make a plot of the clusters and signatures of coexpressed genes. After some recent updates, to view the signaures you must run fisrt some additional lines of code.
 
 
 
 ```{r}
+sce=setDistances(sce)
+sce=storeTransformed(sce)
 viewSignatures(sce)
 ```
 
