@@ -109,6 +109,7 @@ First, we make a plot of the clusters and signatures of coexpressed genes. After
 
 ```{r}
 sce=setDistances(sce)
+sce=setClusters(sce)
 sce=storeTransformed(sce)
 viewSignatures(sce)
 ```
