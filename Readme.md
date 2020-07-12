@@ -1,4 +1,6 @@
-# **bigSCale 2**
+# **bigSCale 2 IS NOT LONGER MAINTAINED**
+I will no longer support for bugs nor questions, I leave it up to the community!
+
 
 *bigSCale* is a complete framework for the analysis and visualization of single cell data. It allows to cluster, phenotype, perform pseudotime analysis, infer gene regulatory networks and reduce large datasets in smaller datasets with higher quality. The latest update alos allows analysis of single cell ATAC-seq data.
 
