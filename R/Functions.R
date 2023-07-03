@@ -3925,7 +3925,7 @@ calculate.ODgenes = function(expr.norm,min_ODscore=2.33,verbose=TRUE,use.exp=c(0
       expr.row.sorted=Rfast::rowSort(expr.norm) #MEMORY ALERT with Rfast::sort_mat
       a=Rfast::rowmeans(expr.row.sorted[,(num.samples-skwed.cells):num.samples])
       La=log2(a)
-      B=Rfast::rowVars(expr.row.sorted[,(num.samples-skwed.cells):num.samples], suma = NULL, std = TRUE)/a
+      B=Rfast::rowVars(expr.row.sorted[,(num.samples-skwed.cells):num.samples], std = TRUE)/a
       rm(expr.row.sorted)
       gc()
       f=smooth.spline(x=La[La>0],y=B[La>0],df = 12) # smoothing sline approximatinf the La/B relationship
